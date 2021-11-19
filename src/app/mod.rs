@@ -1,4 +1,12 @@
-use crate::{GuiHandler, HiDpiMode, Renderer};
+mod canvas;
+mod gui;
+mod paint;
+mod render;
+
+use canvas::Canvas;
+use gui::{GuiHandler, HiDpiMode};
+use paint::Painter;
+use render::Renderer;
 
 use winit::event::{DeviceEvent, DeviceId, WindowEvent};
 use winit::window::{Window, WindowId};
@@ -38,35 +46,47 @@ pub trait App {
 pub struct Program {
     // Window
     window: Arc<Window>,
+    renderer: Arc<Renderer>,
 
     // State tracking
     active: bool,
     should_close: bool,
 
-    renderer: Renderer,
+    // Gui
     gui_handler: GuiHandler,
+
+    // Rendering
+    canvas: Canvas,
+    painter: Painter,
 }
 
 impl App for Program {
     fn new(window: Window) -> Self {
         let window = Arc::new(window);
+        let renderer = Arc::new(Renderer::new());
+
+        let canvas = Canvas::new(window.clone(), renderer.clone());
+        let painter = Painter::new(renderer.clone());
         let gui_handler = GuiHandler::new(window.clone(), HiDpiMode::Rounded);
-        let renderer = Renderer::new(window.clone());
 
         Self {
             window,
+            renderer,
+
             active: true,
             should_close: false,
             gui_handler,
-            renderer,
+
+            canvas,
+            painter,
         }
     }
 
     fn on_new_events(&mut self) {}
 
     fn on_window_event(&mut self, id: WindowId, event: &WindowEvent) {
+        self.canvas.on_window_event(id, event);
         self.gui_handler.on_window_event(id, event);
-        self.renderer.on_window_event(id, event);
 
         if self.window.id() == id {
             if let WindowEvent::CloseRequested = event {
@@ -100,7 +120,9 @@ impl App for Program {
     }
 
     fn on_redraw_event(&mut self, id: WindowId) {
-        self.renderer.on_redraw_event(id);
+        if self.canvas.id() == id {
+            self.painter.paint(&self.canvas);
+        }
     }
 
     fn on_redraw_events_cleared(&mut self) {}

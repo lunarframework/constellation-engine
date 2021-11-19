@@ -1,6 +1,4 @@
 mod app;
-mod gui;
-mod render;
 
 use log::info;
 use winit::event::Event;
@@ -8,8 +6,6 @@ use winit::event_loop::{ControlFlow, EventLoop};
 use winit::window::WindowBuilder;
 
 pub use app::{App, Program};
-pub use gui::{GuiHandler, HiDpiMode};
-pub use render::Renderer;
 
 fn main() {
     env_logger::init();
