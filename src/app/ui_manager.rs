@@ -1,13 +1,15 @@
-use imgui::{BackendFlags, Context, Io, Key, Ui};
+use imgui::{BackendFlags, ConfigFlags, Context, FontAtlasRefMut, Io, Key, Ui};
 use winit::dpi::{LogicalPosition, LogicalSize};
 use winit::event::{
     DeviceEvent, DeviceId, ElementState, KeyboardInput, MouseButton, MouseScrollDelta, TouchPhase,
     VirtualKeyCode, WindowEvent,
 };
-use winit::window::{Window, WindowId};
+use winit::window::{CursorIcon, Window, WindowId};
 
 use std::cmp::Ordering;
 use std::sync::Arc;
+
+use super::{ImageDescriptor, ImageId, Painter};
 
 /// Controls how different dpi levels are handled in the ui.
 #[derive(Clone, Debug, PartialEq)]
@@ -17,15 +19,107 @@ pub enum HiDpiMode {
     Locked(f64),
 }
 
+#[derive(Clone)]
+enum ActiveHiDpiMode {
+    Default,
+    Rounded,
+    Locked,
+}
+
+#[derive(Clone)]
+struct DpiHandler {
+    mode: ActiveHiDpiMode,
+    factor: f64,
+}
+
+impl DpiHandler {
+    fn new(mode: HiDpiMode, factor: f64) -> Self {
+        match mode {
+            HiDpiMode::Default => Self {
+                mode: ActiveHiDpiMode::Default,
+                factor,
+            },
+            HiDpiMode::Rounded => Self {
+                mode: ActiveHiDpiMode::Rounded,
+                factor: factor.round(),
+            },
+            HiDpiMode::Locked(value) => Self {
+                mode: ActiveHiDpiMode::Locked,
+                factor: value,
+            },
+        }
+    }
+
+    fn adjust_logical_size(
+        &self,
+        window: &Window,
+        logical_size: LogicalSize<f64>,
+    ) -> LogicalSize<f64> {
+        match self.mode {
+            ActiveHiDpiMode::Default => logical_size,
+            _ => logical_size
+                .to_physical::<f64>(window.scale_factor())
+                .to_logical(self.factor),
+        }
+    }
+
+    fn adjust_logical_pos(
+        &self,
+        window: &Window,
+        logical_pos: LogicalPosition<f64>,
+    ) -> LogicalPosition<f64> {
+        match self.mode {
+            ActiveHiDpiMode::Default => logical_pos,
+            _ => logical_pos
+                .to_physical::<f64>(window.scale_factor())
+                .to_logical(self.factor),
+        }
+    }
+}
+
+#[derive(Debug, Copy, Clone, Eq, PartialEq)]
+struct CursorSettings {
+    cursor: Option<imgui::MouseCursor>,
+    draw_cursor: bool,
+}
+
+fn to_winit_cursor(cursor: imgui::MouseCursor) -> CursorIcon {
+    match cursor {
+        imgui::MouseCursor::Arrow => CursorIcon::Default,
+        imgui::MouseCursor::TextInput => CursorIcon::Text,
+        imgui::MouseCursor::ResizeAll => CursorIcon::Move,
+        imgui::MouseCursor::ResizeNS => CursorIcon::NsResize,
+        imgui::MouseCursor::ResizeEW => CursorIcon::EwResize,
+        imgui::MouseCursor::ResizeNESW => CursorIcon::NeswResize,
+        imgui::MouseCursor::ResizeNWSE => CursorIcon::NwseResize,
+        imgui::MouseCursor::Hand => CursorIcon::Hand,
+        imgui::MouseCursor::NotAllowed => CursorIcon::NotAllowed,
+    }
+}
+
+impl CursorSettings {
+    fn apply(&self, window: &Window) {
+        match self.cursor {
+            Some(mouse_cursor) if !self.draw_cursor => {
+                window.set_cursor_visible(true);
+                window.set_cursor_icon(to_winit_cursor(mouse_cursor));
+            }
+            _ => window.set_cursor_visible(false),
+        }
+    }
+}
+
 /// Builder of ui and manages the various user interations with that ui.
 /// This is a thin wrapper atop `imgui`, an immediete mode gui lib.
-pub struct GuiHandler {
+pub struct UiManager {
     window: Arc<Window>,
     context: Context,
     dpi: DpiHandler,
+    cursor_cache: Option<CursorSettings>,
+    font_atlas_image: Option<ImageId>,
 }
 
-impl GuiHandler {
+impl UiManager {
     /// Creates the gui handler and attaches it to the given window
     pub fn new(window: Arc<Window>, mode: HiDpiMode) -> Self {
         let mut context = Context::create();
@@ -74,7 +168,39 @@ impl GuiHandler {
             context,
             dpi,
             window,
+            cursor_cache: Option::<CursorSettings>::None,
+            font_atlas_image: None,
         }
+    }
+
+    /// This should be called whenever a texture is added to the ui_manager
+    pub fn reload_font_atlas(&mut self, painter: &Painter) {
+        if let Some(id) = self.font_atlas_image {
+            // Remove possible font atlas texture.
+            painter.release_image(id);
+        }
+
+        let mut fonts = self.fonts();
+
+        // Create font texture and upload it.
+        let handle = fonts.build_rgba32_texture();
+
+        let id = painter.create_image(&ImageDescriptor {
+            label: Some("Imgui Font Atlas"),
+            width: handle.width,
+            height: handle.height,
+            srgb: false,
+            renderable: false,
+        });
+
+        painter.write_image(id, handle.data);
+        // Clear imgui texture data to save memory.
+        fonts.clear_tex_data();
+        fonts.tex_id = id;
+
+        drop(fonts);
+
+        self.font_atlas_image = Some(id);
     }
 
     /// Returns the dpi factor of the ui.
@@ -92,6 +218,10 @@ impl GuiHandler {
         &mut self.context
     }
 
+    pub fn fonts(&mut self) -> FontAtlasRefMut<'_> {
+        self.context.fonts()
+    }
+
     pub fn io(&self) -> &Io {
         self.context.io()
     }
@@ -101,8 +231,36 @@ impl GuiHandler {
     }
 
     /// Begins the creation of a new frame.
-    pub fn frame(&mut self) -> Ui<'_> {
-        self.context.frame()
+    pub fn frame<F: Fn(&mut Ui<'_>)>(&mut self, f: F) {
+        if self.context.io().want_set_mouse_pos {
+            let logical_pos = self.dpi.adjust_logical_pos(
+                &self.window,
+                LogicalPosition::new(
+                    f64::from(self.context.io().mouse_pos[0]),
+                    f64::from(self.context.io().mouse_pos[1]),
+                ),
+            );
+            self.window.set_cursor_position(logical_pos).unwrap();
+        }
+        let mut ui = self.context.frame();
+        f(&mut ui);
+
+        let io = ui.io();
+        if !io
+            .config_flags
+            .contains(ConfigFlags::NO_MOUSE_CURSOR_CHANGE)
+        {
+            let cursor = CursorSettings {
+                cursor: ui.mouse_cursor(),
+                draw_cursor: io.mouse_draw_cursor,
+            };
+            if self.cursor_cache != Some(cursor) {
+                cursor.apply(&self.window);
+                self.cursor_cache = Some(cursor);
+            }
+        }
+
+        ui.render();
     }
 
     pub fn on_window_event(&mut self, id: WindowId, event: &WindowEvent) {
@@ -243,64 +401,6 @@ impl GuiHandler {
                 io.keys_down[*key as usize] = false;
             }
             _ => {}
-        }
-    }
-}
-
-#[derive(Clone)]
-enum ActiveHiDpiMode {
-    Default,
-    Rounded,
-    Locked,
-}
-
-#[derive(Clone)]
-struct DpiHandler {
-    mode: ActiveHiDpiMode,
-    factor: f64,
-}
-
-impl DpiHandler {
-    fn new(mode: HiDpiMode, factor: f64) -> Self {
-        match mode {
-            HiDpiMode::Default => Self {
-                mode: ActiveHiDpiMode::Default,
-                factor,
-            },
-            HiDpiMode::Rounded => Self {
-                mode: ActiveHiDpiMode::Rounded,
-                factor: factor.round(),
-            },
-            HiDpiMode::Locked(value) => Self {
-                mode: ActiveHiDpiMode::Locked,
-                factor: value,
-            },
-        }
-    }
-
-    fn adjust_logical_size(
-        &self,
-        window: &Window,
-        logical_size: LogicalSize<f64>,
-    ) -> LogicalSize<f64> {
-        match self.mode {
-            ActiveHiDpiMode::Default => logical_size,
-            _ => logical_size
-                .to_physical::<f64>(window.scale_factor())
-                .to_logical(self.factor),
-        }
-    }
-
-    fn adjust_logical_pos(
-        &self,
-        window: &Window,
-        logical_pos: LogicalPosition<f64>,
-    ) -> LogicalPosition<f64> {
-        match self.mode {
-            ActiveHiDpiMode::Default => logical_pos,
-            _ => logical_pos
-                .to_physical::<f64>(window.scale_factor())
-                .to_logical(self.factor),
         }
     }
 }

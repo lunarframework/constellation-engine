@@ -1,12 +1,12 @@
 mod canvas;
-mod gui;
 mod paint;
 mod render;
+mod ui_manager;
 
 use canvas::Canvas;
-use gui::{GuiHandler, HiDpiMode};
-use paint::Painter;
+use paint::{ImageDescriptor, ImageId, Painter};
 use render::Renderer;
+use ui_manager::{HiDpiMode, UiManager};
 
 use winit::event::{DeviceEvent, DeviceId, WindowEvent};
 use winit::window::{Window, WindowId};
@@ -53,7 +53,7 @@ pub struct Program {
     should_close: bool,
 
     // Gui
-    gui_handler: GuiHandler,
+    ui_manager: UiManager,
 
     // Rendering
     canvas: Canvas,
@@ -66,8 +66,9 @@ impl App for Program {
         let renderer = Arc::new(Renderer::new());
 
         let canvas = Canvas::new(window.clone(), renderer.clone());
-        let painter = Painter::new(renderer.clone());
-        let gui_handler = GuiHandler::new(window.clone(), HiDpiMode::Rounded);
+        let mut painter = Painter::new(renderer.clone());
+        let mut ui_manager = UiManager::new(window.clone(), HiDpiMode::Rounded);
+        ui_manager.reload_font_atlas(&mut painter);
 
         Self {
             window,
@@ -75,7 +76,7 @@ impl App for Program {
 
             active: true,
             should_close: false,
-            gui_handler,
+            ui_manager,
 
             canvas,
             painter,
@@ -86,7 +87,7 @@ impl App for Program {
 
     fn on_window_event(&mut self, id: WindowId, event: &WindowEvent) {
         self.canvas.on_window_event(id, event);
-        self.gui_handler.on_window_event(id, event);
+        self.ui_manager.on_window_event(id, event);
 
         if self.window.id() == id {
             if let WindowEvent::CloseRequested = event {
@@ -96,7 +97,7 @@ impl App for Program {
     }
 
     fn on_device_event(&mut self, id: DeviceId, event: &DeviceEvent) {
-        self.gui_handler.on_device_event(id, event);
+        self.ui_manager.on_device_event(id, event);
     }
 
     fn on_suspend(&mut self) {
@@ -109,11 +110,9 @@ impl App for Program {
 
     fn on_main_events_cleared(&mut self) {
         if self.active {
-            // let ui = self.gui_handler.frame();
-
-            //  Build Ui here
-
-            // let _draw_data = ui.render();
+            self.ui_manager.frame(|_ui| {
+                // Build Ui here
+            });
 
             self.window.request_redraw();
         }

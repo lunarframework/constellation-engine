@@ -9,6 +9,9 @@ pub use app::{App, Program};
 
 fn main() {
     env_logger::init();
+    // env_logger::builder()
+    //     .filter_level(log::LevelFilter::Info)
+    //     .init();
 
     info!("Initializing constellation engine...");
 
