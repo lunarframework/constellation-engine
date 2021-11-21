@@ -9,7 +9,7 @@ use winit::window::{CursorIcon, Window, WindowId};
 use std::cmp::Ordering;
 use std::sync::Arc;
 
-use super::{ImageDescriptor, ImageId, Painter};
+use super::{Painter, PaletteDescriptor, PaletteId};
 
 /// Controls how different dpi levels are handled in the ui.
 #[derive(Clone, Debug, PartialEq)]
@@ -116,7 +116,7 @@ pub struct UiManager {
     context: Context,
     dpi: DpiHandler,
     cursor_cache: Option<CursorSettings>,
-    font_atlas_image: Option<ImageId>,
+    font_atlas_loaded: bool,
 }
 
 impl UiManager {
@@ -129,12 +129,19 @@ impl UiManager {
             env!("CARGO_PKG_VERSION")
         )));
 
+        context.set_renderer_name(Some(format!(
+            "constellation-engine {}",
+            env!("CARGO_PKG_VERSION")
+        )));
+
         let dpi = DpiHandler::new(mode, window.scale_factor());
 
         {
             let io = context.io_mut();
             io.backend_flags.insert(BackendFlags::HAS_MOUSE_CURSORS);
             io.backend_flags.insert(BackendFlags::HAS_SET_MOUSE_POS);
+            io.backend_flags
+                .insert(BackendFlags::RENDERER_HAS_VTX_OFFSET);
             io[Key::Tab] = VirtualKeyCode::Tab as _;
             io[Key::LeftArrow] = VirtualKeyCode::Left as _;
             io[Key::RightArrow] = VirtualKeyCode::Right as _;
@@ -169,15 +176,15 @@ impl UiManager {
             dpi,
             window,
             cursor_cache: Option::<CursorSettings>::None,
-            font_atlas_image: None,
+            font_atlas_loaded: false,
         }
     }
 
     /// This should be called whenever a texture is added to the ui_manager
     pub fn reload_font_atlas(&mut self, painter: &Painter) {
-        if let Some(id) = self.font_atlas_image {
+        if !self.font_atlas_loaded {
             // Remove possible font atlas texture.
-            painter.release_image(id);
+            painter.release_palette(PaletteId::from(self.fonts().tex_id));
         }
 
         let mut fonts = self.fonts();
@@ -185,7 +192,7 @@ impl UiManager {
         // Create font texture and upload it.
         let handle = fonts.build_rgba32_texture();
 
-        let id = painter.create_image(&ImageDescriptor {
+        let id = painter.create_palette(&PaletteDescriptor {
             label: Some("Imgui Font Atlas"),
             width: handle.width,
             height: handle.height,
@@ -193,14 +200,14 @@ impl UiManager {
             renderable: false,
         });
 
-        painter.write_image(id, handle.data);
+        painter.write_palette(id, handle.data);
         // Clear imgui texture data to save memory.
         fonts.clear_tex_data();
-        fonts.tex_id = id;
+        fonts.tex_id = id.as_image_id();
 
         drop(fonts);
 
-        self.font_atlas_image = Some(id);
+        self.font_atlas_loaded = true;
     }
 
     /// Returns the dpi factor of the ui.

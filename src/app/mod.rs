@@ -4,7 +4,7 @@ mod render;
 mod ui_manager;
 
 use canvas::Canvas;
-use paint::{ImageDescriptor, ImageId, Painter};
+use paint::{PaintData, Painter, Palette, PaletteDescriptor, PaletteId};
 use render::Renderer;
 use ui_manager::{HiDpiMode, UiManager};
 
@@ -58,6 +58,8 @@ pub struct Program {
     // Rendering
     canvas: Canvas,
     painter: Painter,
+
+    paint_data: PaintData,
 }
 
 impl App for Program {
@@ -80,6 +82,8 @@ impl App for Program {
 
             canvas,
             painter,
+
+            paint_data: PaintData::new(),
         }
     }
 
@@ -120,7 +124,7 @@ impl App for Program {
 
     fn on_redraw_event(&mut self, id: WindowId) {
         if self.canvas.id() == id {
-            self.painter.paint(&self.canvas);
+            self.painter.paint(&self.canvas, &self.paint_data).unwrap();
         }
     }
 

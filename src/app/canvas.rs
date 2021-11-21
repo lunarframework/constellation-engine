@@ -1,5 +1,8 @@
 use log::info;
-use wgpu::{PresentMode, Surface, SurfaceConfiguration, Texture, TextureFormat, TextureUsages};
+use wgpu::{
+    PresentMode, Surface, SurfaceConfiguration, SurfaceTexture, Texture, TextureFormat,
+    TextureUsages,
+};
 use winit::event::WindowEvent;
 use winit::window::{Window, WindowId};
 
@@ -74,12 +77,8 @@ impl Canvas {
         }
     }
 
-    pub fn present<F: FnOnce(&Texture) -> bool>(&self, f: F) {
-        let output = self.surface.get_current_texture().unwrap();
-        let touched = f(&output.texture);
-        if touched {
-            output.present();
-        }
+    pub fn acquire(&self) -> SurfaceTexture {
+        self.surface.get_current_texture().unwrap()
     }
 
     pub fn format(&self) -> TextureFormat {
@@ -88,5 +87,14 @@ impl Canvas {
 
     pub fn id(&self) -> WindowId {
         self.window.id()
+    }
+
+    pub fn scale_factor(&self) -> f64 {
+        self.window.scale_factor()
+    }
+
+    pub fn logical_size(&self) -> (f64, f64) {
+        let size = self.window.inner_size().to_logical(self.scale_factor());
+        (size.width, size.height)
     }
 }
