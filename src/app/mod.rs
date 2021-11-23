@@ -125,6 +125,7 @@ impl App for Program {
                     .menu_bar(true)
                     .resizable(false)
                     .no_decoration()
+                    .bring_to_front_on_focus(false)
                     .build(ui, || {
                         ui.menu_bar(|| {
                             ui.menu("File", || {});
@@ -133,6 +134,8 @@ impl App for Program {
 
                         ui.text("Welcome to Constellation Engine!");
                     });
+
+                ui.show_demo_window(&mut true);
             });
 
             self.window.request_redraw();

@@ -157,17 +157,17 @@ impl UiManager {
                 [r as f32 / 255.0, g as f32 / 255.0, b as f32 / 255.0, 1.0]
             }
 
-            let bg_color = color_from_rgb(37, 37, 38);
-            let light_bg_color = color_from_rgb(82, 82, 85);
-            let very_light_bg_color = color_from_rgb(90, 90, 95);
+            let bg_color = color_from_rgb(7, 7, 8);
+            let light_bg_color = color_from_rgb(32, 32, 35);
+            let very_light_bg_color = color_from_rgb(50, 50, 55);
 
-            let panel_color = color_from_rgb(51, 51, 55);
+            let panel_color = color_from_rgb(21, 21, 25);
             let panel_hover_color = color_from_rgb(29, 151, 236);
             let panel_active_color = color_from_rgb(0, 119, 200);
 
             let text_color = color_from_rgb(255, 255, 255);
             let text_disabled_color = color_from_rgb(151, 151, 151);
-            let border_color = color_from_rgb(78, 78, 78);
+            let border_color = color_from_rgb(48, 48, 48);
 
             let style = &mut context.style_mut();
 
