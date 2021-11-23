@@ -1,12 +1,14 @@
-mod canvas;
-mod paint;
-mod render;
-mod ui_manager;
+pub mod canvas;
+pub mod paint;
+pub mod render;
+pub mod ui_manager;
 
 use canvas::Canvas;
-use paint::{PaintData, Painter, Palette, PaletteDescriptor, PaletteId};
+use paint::{
+    PaintData, PaintElement, PaintIdx, PaintVtx, Painter, Palette, PaletteDescriptor, PaletteId,
+};
 use render::Renderer;
-use ui_manager::{HiDpiMode, UiManager};
+use ui_manager::UiManager;
 
 use winit::event::{DeviceEvent, DeviceId, WindowEvent};
 use winit::window::{Window, WindowId};
@@ -69,7 +71,7 @@ impl App for Program {
 
         let canvas = Canvas::new(window.clone(), renderer.clone());
         let mut painter = Painter::new(renderer.clone());
-        let mut ui_manager = UiManager::new(window.clone(), HiDpiMode::Rounded);
+        let mut ui_manager = UiManager::new(window.clone());
         ui_manager.reload_font_atlas(&mut painter);
 
         Self {
@@ -114,8 +116,22 @@ impl App for Program {
 
     fn on_main_events_cleared(&mut self) {
         if self.active {
-            self.ui_manager.frame(|_ui| {
+            self.ui_manager.frame(&mut self.paint_data, |ui| {
                 // Build Ui here
+
+                imgui::Window::new("Hello_world")
+                    .size([300.0, 100.0], imgui::Condition::FirstUseEver)
+                    .build(ui, || {
+                        ui.text("Hello world!");
+                        ui.text("こんにちは世界！");
+                        ui.text("This...is...imgui-rs!");
+                        ui.separator();
+                        let mouse_pos = ui.io().mouse_pos;
+                        ui.text(format!(
+                            "Mouse Position: ({:.1},{:.1})",
+                            mouse_pos[0], mouse_pos[1]
+                        ));
+                    });
             });
 
             self.window.request_redraw();

@@ -9,73 +9,9 @@ use winit::window::{CursorIcon, Window, WindowId};
 use std::cmp::Ordering;
 use std::sync::Arc;
 
-use super::{Painter, PaletteDescriptor, PaletteId};
-
-/// Controls how different dpi levels are handled in the ui.
-#[derive(Clone, Debug, PartialEq)]
-pub enum HiDpiMode {
-    Default,
-    Rounded,
-    Locked(f64),
-}
-
-#[derive(Clone)]
-enum ActiveHiDpiMode {
-    Default,
-    Rounded,
-    Locked,
-}
-
-#[derive(Clone)]
-struct DpiHandler {
-    mode: ActiveHiDpiMode,
-    factor: f64,
-}
-
-impl DpiHandler {
-    fn new(mode: HiDpiMode, factor: f64) -> Self {
-        match mode {
-            HiDpiMode::Default => Self {
-                mode: ActiveHiDpiMode::Default,
-                factor,
-            },
-            HiDpiMode::Rounded => Self {
-                mode: ActiveHiDpiMode::Rounded,
-                factor: factor.round(),
-            },
-            HiDpiMode::Locked(value) => Self {
-                mode: ActiveHiDpiMode::Locked,
-                factor: value,
-            },
-        }
-    }
-
-    fn adjust_logical_size(
-        &self,
-        window: &Window,
-        logical_size: LogicalSize<f64>,
-    ) -> LogicalSize<f64> {
-        match self.mode {
-            ActiveHiDpiMode::Default => logical_size,
-            _ => logical_size
-                .to_physical::<f64>(window.scale_factor())
-                .to_logical(self.factor),
-        }
-    }
-
-    fn adjust_logical_pos(
-        &self,
-        window: &Window,
-        logical_pos: LogicalPosition<f64>,
-    ) -> LogicalPosition<f64> {
-        match self.mode {
-            ActiveHiDpiMode::Default => logical_pos,
-            _ => logical_pos
-                .to_physical::<f64>(window.scale_factor())
-                .to_logical(self.factor),
-        }
-    }
-}
+use super::{
+    PaintData, PaintElement, PaintIdx, PaintVtx, Painter, Palette, PaletteDescriptor, PaletteId,
+};
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq)]
 struct CursorSettings {
@@ -114,14 +50,14 @@ impl CursorSettings {
 pub struct UiManager {
     window: Arc<Window>,
     context: Context,
-    dpi: DpiHandler,
     cursor_cache: Option<CursorSettings>,
-    font_atlas_loaded: bool,
+    font_atlas: Option<Palette>,
+    scale_factor: f64,
 }
 
 impl UiManager {
     /// Creates the gui handler and attaches it to the given window
-    pub fn new(window: Arc<Window>, mode: HiDpiMode) -> Self {
+    pub fn new(window: Arc<Window>) -> Self {
         let mut context = Context::create();
 
         context.set_platform_name(Some(format!(
@@ -133,8 +69,6 @@ impl UiManager {
             "constellation-engine {}",
             env!("CARGO_PKG_VERSION")
         )));
-
-        let dpi = DpiHandler::new(mode, window.scale_factor());
 
         {
             let io = context.io_mut();
@@ -165,34 +99,29 @@ impl UiManager {
             io[Key::Y] = VirtualKeyCode::Y as _;
             io[Key::Z] = VirtualKeyCode::Z as _;
 
-            io.display_framebuffer_scale = [dpi.factor as f32, dpi.factor as f32];
-            let logical_size = window.inner_size().to_logical(dpi.factor);
-            let logical_size = dpi.adjust_logical_size(&window, logical_size);
+            io.display_framebuffer_scale =
+                [window.scale_factor() as f32, window.scale_factor() as f32];
+            let logical_size = window.inner_size().to_logical::<f32>(window.scale_factor());
             io.display_size = [logical_size.width as f32, logical_size.height as f32];
         }
 
         Self {
             context,
-            dpi,
+            scale_factor: window.scale_factor(),
             window,
             cursor_cache: Option::<CursorSettings>::None,
-            font_atlas_loaded: false,
+            font_atlas: None,
         }
     }
 
     /// This should be called whenever a texture is added to the ui_manager
     pub fn reload_font_atlas(&mut self, painter: &Painter) {
-        if !self.font_atlas_loaded {
-            // Remove possible font atlas texture.
-            painter.release_palette(PaletteId::from(self.fonts().tex_id));
-        }
-
         let mut fonts = self.fonts();
 
         // Create font texture and upload it.
         let handle = fonts.build_rgba32_texture();
 
-        let id = painter.create_palette(&PaletteDescriptor {
+        let palette = painter.create_palette(&PaletteDescriptor {
             label: Some("Imgui Font Atlas"),
             width: handle.width,
             height: handle.height,
@@ -200,19 +129,14 @@ impl UiManager {
             renderable: false,
         });
 
-        painter.write_palette(id, handle.data);
+        painter.write_palette(&palette, handle.data);
         // Clear imgui texture data to save memory.
         fonts.clear_tex_data();
-        fonts.tex_id = id.as_image_id();
+        fonts.tex_id = palette.image_id();
 
         drop(fonts);
 
-        self.font_atlas_loaded = true;
-    }
-
-    /// Returns the dpi factor of the ui.
-    pub fn hidpi_factor(&self) -> f64 {
-        self.dpi.factor
+        self.font_atlas = Some(palette);
     }
 
     /// Returns the imgui context
@@ -238,16 +162,14 @@ impl UiManager {
     }
 
     /// Begins the creation of a new frame.
-    pub fn frame<F: Fn(&mut Ui<'_>)>(&mut self, f: F) {
+    pub fn frame<F: Fn(&mut Ui<'_>)>(&mut self, data: &mut PaintData, f: F) {
         if self.context.io().want_set_mouse_pos {
-            let logical_pos = self.dpi.adjust_logical_pos(
-                &self.window,
-                LogicalPosition::new(
+            self.window
+                .set_cursor_position(LogicalPosition::new(
                     f64::from(self.context.io().mouse_pos[0]),
                     f64::from(self.context.io().mouse_pos[1]),
-                ),
-            );
-            self.window.set_cursor_position(logical_pos).unwrap();
+                ))
+                .unwrap();
         }
         let mut ui = self.context.frame();
         f(&mut ui);
@@ -267,7 +189,68 @@ impl UiManager {
             }
         }
 
-        ui.render();
+        let draw_data = ui.render();
+
+        assert_eq!(
+            std::mem::size_of::<imgui::DrawVert>(),
+            std::mem::size_of::<PaintVtx>()
+        );
+
+        assert_eq!(
+            std::mem::size_of::<imgui::DrawIdx>(),
+            std::mem::size_of::<PaintIdx>()
+        );
+
+        let mut total_vtx_count = 0;
+        let mut total_idx_count = 0;
+
+        let mut elem_count = 0;
+
+        for draw_list in draw_data.draw_lists() {
+            elem_count += draw_list
+                .commands()
+                .filter(|command| {
+                    if let imgui::DrawCmd::Elements { .. } = command {
+                        return true;
+                    };
+                    false
+                })
+                .count();
+
+            total_vtx_count += draw_list.vtx_buffer().len();
+            total_idx_count += draw_list.idx_buffer().len();
+        }
+        data.set_pos(draw_data.display_pos);
+        data.set_size(draw_data.display_size);
+
+        data.reserve(total_vtx_count, total_idx_count, elem_count);
+
+        let mut global_vtx_offset = 0;
+        let mut global_idx_offset = 0;
+
+        for draw_list in draw_data.draw_lists() {
+            // Safety, imgui::DrawVert and PaintVtx should be the same size and layout
+            // As should imgui::DrawIdx and PaintIdx.
+            unsafe {
+                use std::mem::transmute;
+                data.add_vtx_sub_buffer(transmute(draw_list.vtx_buffer()));
+                data.add_idx_sub_buffer(transmute(draw_list.idx_buffer()));
+            }
+            for draw_cmd in draw_list.commands() {
+                if let imgui::DrawCmd::Elements { count, cmd_params } = draw_cmd {
+                    data.add_element(PaintElement {
+                        idx_count: count,
+                        clip_rect: cmd_params.clip_rect,
+                        idx_offset: global_idx_offset + cmd_params.idx_offset,
+                        vtx_offset: global_vtx_offset + cmd_params.vtx_offset,
+                        palette_id: PaletteId::from(cmd_params.texture_id),
+                    });
+                };
+            }
+
+            global_vtx_offset += draw_list.vtx_buffer().len();
+            global_idx_offset += draw_list.idx_buffer().len();
+        }
     }
 
     pub fn on_window_event(&mut self, id: WindowId, event: &WindowEvent) {
@@ -282,12 +265,11 @@ impl UiManager {
                 }
                 WindowEvent::Resized(physical_size) => {
                     let logical_size = physical_size.to_logical::<f64>(self.window.scale_factor());
-                    let logical_size = self.dpi.adjust_logical_size(&self.window, logical_size);
                     let mut io = self.io_mut();
                     io.display_size = [logical_size.width as f32, logical_size.height as f32];
                 }
                 WindowEvent::ScaleFactorChanged { scale_factor, .. } => {
-                    let hidpi_factor = *scale_factor;
+                    let new_scale_factor = *scale_factor;
                     // let mut io = self.io_mut();
                     // Mouse position needs to be changed while we still have both the old and the new
                     // values
@@ -295,18 +277,18 @@ impl UiManager {
                         && self.io_mut().mouse_pos[1].is_finite()
                     {
                         self.io_mut().mouse_pos = [
-                            self.io_mut().mouse_pos[0] * (hidpi_factor / self.dpi.factor) as f32,
-                            self.io_mut().mouse_pos[1] * (hidpi_factor / self.dpi.factor) as f32,
+                            self.io_mut().mouse_pos[0]
+                                * (new_scale_factor / self.scale_factor) as f32,
+                            self.io_mut().mouse_pos[1]
+                                * (new_scale_factor / self.scale_factor) as f32,
                         ];
                     }
-                    self.dpi.factor = hidpi_factor;
+                    self.scale_factor = new_scale_factor;
                     self.io_mut().display_framebuffer_scale =
-                        [hidpi_factor as f32, hidpi_factor as f32];
+                        [new_scale_factor as f32, new_scale_factor as f32];
                     // Window size might change too if we are using DPI rounding
-                    let logical_size = self.window.inner_size().to_logical(*scale_factor);
-                    let logical_size = self.dpi.adjust_logical_size(&self.window, logical_size);
-                    self.io_mut().display_size =
-                        [logical_size.width as f32, logical_size.height as f32];
+                    let logical_size = self.window.inner_size().to_logical::<f32>(*scale_factor);
+                    self.io_mut().display_size = [logical_size.width, logical_size.height];
                 }
                 WindowEvent::KeyboardInput {
                     input:
@@ -343,8 +325,7 @@ impl UiManager {
                     }
                 }
                 WindowEvent::CursorMoved { position, .. } => {
-                    let position = position.to_logical(self.window.scale_factor());
-                    let position = self.dpi.adjust_logical_pos(&self.window, position);
+                    let position = position.to_logical::<f32>(self.window.scale_factor());
                     self.io_mut().mouse_pos = [position.x as f32, position.y as f32];
                 }
                 WindowEvent::MouseWheel {
@@ -358,7 +339,7 @@ impl UiManager {
                         io.mouse_wheel = *v;
                     }
                     MouseScrollDelta::PixelDelta(pos) => {
-                        let pos = pos.to_logical::<f64>(self.dpi.factor);
+                        let pos = pos.to_logical::<f64>(self.scale_factor);
                         let mut io = self.io_mut();
                         match pos.x.partial_cmp(&0.0) {
                             Some(Ordering::Greater) => io.mouse_wheel_h += 1.0,

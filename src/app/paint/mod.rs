@@ -13,6 +13,7 @@ use wgpu::{
     VertexAttribute, VertexBufferLayout, VertexFormat, VertexState, VertexStepMode,
 };
 
+use std::borrow::Borrow;
 use std::collections::HashMap;
 use std::error::Error;
 use std::fmt;
@@ -59,19 +60,13 @@ pub struct Painter {
     renderer: Arc<Renderer>,
     pipeline: Option<RenderPipeline>,
     output_format: TextureFormat,
-    uniform_buffer: Buffer,
     uniform_buffer_bind_group: BindGroup,
     sampler: Sampler,
     texture_bind_group_layout: BindGroupLayout,
     pipeline_layout: PipelineLayout,
     shader_module: ShaderModule,
-
-    index_buffer: Buffer,
-    index_buffer_size: u64,
-    vertex_buffer: Buffer,
-    vertex_buffer_size: u64,
-
-    palettes: Arc<Mutex<PaletteRegistry>>,
+    buffers: PainterBuffers,
+    bind_groups: Arc<Mutex<BindGroupRegistry>>,
 }
 
 impl Painter {
@@ -82,14 +77,7 @@ impl Painter {
             .device()
             .create_shader_module(&include_wgsl!("shader.wgsl"));
 
-        // Create the uniform matrix buffer.
-        let size = 64;
-        let uniform_buffer = renderer.device().create_buffer(&BufferDescriptor {
-            label: Some("Painter uniform buffer"),
-            size,
-            usage: BufferUsages::UNIFORM | BufferUsages::COPY_DST,
-            mapped_at_creation: false,
-        });
+        let buffers = PainterBuffers::new(renderer.borrow());
 
         // Create the uniform matrix buffer bind group layout.
         let uniform_layout =
@@ -115,7 +103,7 @@ impl Painter {
             layout: &uniform_layout,
             entries: &[BindGroupEntry {
                 binding: 0,
-                resource: uniform_buffer.as_entire_binding(),
+                resource: buffers.uniform_buffer.as_entire_binding(),
             }],
         });
 
@@ -172,47 +160,22 @@ impl Painter {
             anisotropy_clamp: None,
             border_color: None,
         });
-
-        // Initializes a vertex buffer of size 1 MiB.
-        let vertex_buffer_size = 1024 * 1024;
-
-        let vertex_buffer = renderer.device().create_buffer(&BufferDescriptor {
-            label: Some("Painter Vertex Buffer"),
-            size: vertex_buffer_size,
-            usage: BufferUsages::VERTEX | BufferUsages::COPY_DST,
-            mapped_at_creation: false,
-        });
-
-        // Initializes an index buffer of size 1 MiB.
-        let index_buffer_size = 1024 * 1024;
-
-        let index_buffer = renderer.device().create_buffer(&BufferDescriptor {
-            label: Some("Painter Index Buffer"),
-            size: index_buffer_size,
-            usage: BufferUsages::INDEX | BufferUsages::COPY_DST,
-            mapped_at_creation: false,
-        });
-
         Self {
             renderer,
             pipeline: None,
             output_format: TextureFormat::R8Unorm,
-            uniform_buffer,
             uniform_buffer_bind_group,
             sampler,
             texture_bind_group_layout,
             pipeline_layout,
             shader_module,
-            vertex_buffer,
-            vertex_buffer_size,
-            index_buffer,
-            index_buffer_size,
-            palettes: Arc::new(Mutex::new(PaletteRegistry::new())),
+            buffers,
+            bind_groups: Arc::new(Mutex::new(BindGroupRegistry::new())),
         }
     }
 
     /// Creates a new palette using the palette descriptor
-    pub fn create_palette(&self, desc: &PaletteDescriptor) -> PaletteId {
+    pub fn create_palette(&self, desc: &PaletteDescriptor) -> Palette {
         let mut usage =
             TextureUsages::TEXTURE_BINDING | TextureUsages::COPY_DST | TextureUsages::COPY_SRC;
 
@@ -261,31 +224,27 @@ impl Painter {
                 ],
             });
 
-        self.palettes.lock().unwrap().insert(Palette {
+        let id = self.bind_groups.lock().unwrap().insert(bind_group);
+
+        Palette {
             texture,
             view,
-            bind_group,
+            registry: self.bind_groups.clone(),
+            id,
             width: desc.width,
             height: desc.height,
             is_srgb: desc.srgb,
             is_renderable: desc.renderable,
-        })
+        }
     }
 
-    pub fn release_palette(&self, id: PaletteId) -> Option<Palette> {
-        self.palettes.lock().unwrap().remove(id)
-    }
-
-    pub fn write_palette(&self, id: PaletteId, data: &[u8]) {
-        let registry = self.palettes.lock().unwrap();
-        let image = registry.get(id).unwrap();
-
-        assert_eq!(data.len() as u32, image.width * image.height * 4);
+    pub fn write_palette(&self, palette: &Palette, data: &[u8]) {
+        assert_eq!(data.len() as u32, palette.width * palette.height * 4);
 
         self.renderer.queue().write_texture(
             // destination (sub)texture
             ImageCopyTexture {
-                texture: &image.texture,
+                texture: &palette.texture,
                 mip_level: 0,
                 origin: Origin3d { x: 0, y: 0, z: 0 },
                 aspect: TextureAspect::All,
@@ -295,13 +254,13 @@ impl Painter {
             // layout of the source bitmap
             ImageDataLayout {
                 offset: 0,
-                bytes_per_row: NonZeroU32::new(image.width * 4),
-                rows_per_image: NonZeroU32::new(image.height),
+                bytes_per_row: NonZeroU32::new(palette.width * 4),
+                rows_per_image: NonZeroU32::new(palette.height),
             },
             // size of the source bitmap
             Extent3d {
-                width: image.width,
-                height: image.height,
+                width: palette.width,
+                height: palette.height,
                 depth_or_array_layers: 1,
             },
         );
@@ -323,6 +282,9 @@ impl Painter {
 
     /// Paints the data described in `paint_data` into the canvas.
     pub fn paint(&mut self, canvas: &Canvas, paint_data: &PaintData) -> Result<(), PaintError> {
+        // println!("Display size: {:?}", paint_data.size);
+        // println!("Canvas size: {:?}", canvas.size());
+        // println!("Canvas scale factor: {}", canvas.scale_factor());
         if self.output_format != canvas.format() || self.pipeline.is_none() {
             self.output_format = canvas.format();
             self.recreate_pipeline();
@@ -331,12 +293,14 @@ impl Painter {
         let fb_width = paint_data.size[0] * canvas.scale_factor() as f32;
         let fb_height = paint_data.size[1] * canvas.scale_factor() as f32;
 
+        //println!("Framebuffer: {:?}", (fb_width, fb_height));
+
         // // If the render area is <= 0, exit here and now.
         // if !(fb_width > 0.0 && fb_height > 0.0) {
         //     return Ok(());
         // }
 
-        self.update_buffers(paint_data);
+        self.buffers.update(self.renderer.borrow(), paint_data);
 
         let output = canvas.acquire();
 
@@ -352,7 +316,7 @@ impl Painter {
                 });
 
         {
-            let palettes = self.palettes.lock().unwrap();
+            let bind_groups = self.bind_groups.lock().unwrap();
             let mut render_pass = encoder.begin_render_pass(&RenderPassDescriptor {
                 label: Some("Paint Pass"),
                 color_attachments: &[RenderPassColorAttachment {
@@ -372,58 +336,46 @@ impl Painter {
             });
 
             render_pass.set_pipeline(self.pipeline.as_ref().unwrap());
-            render_pass.set_index_buffer(self.index_buffer.slice(..), IndexFormat::Uint16);
-            render_pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
+            render_pass.set_index_buffer(self.buffers.index_buffer.slice(..), IndexFormat::Uint16);
+            render_pass.set_vertex_buffer(0, self.buffers.vertex_buffer.slice(..));
             render_pass.set_bind_group(0, &self.uniform_buffer_bind_group, &[]);
 
+            render_pass.set_viewport(0.0, 0.0, fb_width, fb_height, 0.0, 1.0);
+
             for elem in paint_data.elements.iter() {
-                let clip_rect = [
+                let clip_min = [
                     (elem.clip_rect[0] - paint_data.pos[0]) * canvas.scale_factor() as f32,
                     (elem.clip_rect[1] - paint_data.pos[1]) * canvas.scale_factor() as f32,
+                ];
+
+                let clip_max = [
                     (elem.clip_rect[2] - paint_data.pos[0]) * canvas.scale_factor() as f32,
                     (elem.clip_rect[3] - paint_data.pos[1]) * canvas.scale_factor() as f32,
                 ];
 
-                let palette_id = elem.palette;
+                if clip_max[0] >= clip_min[0] && clip_max[1] >= clip_min[1] {
+                    let palette_id = elem.palette_id;
 
-                render_pass.set_bind_group(
-                    1,
-                    &palettes
-                        .get(palette_id)
-                        .ok_or(PaintError::InvalidPalette(palette_id))?
-                        .bind_group,
-                    &[],
-                );
-
-                // Set scissors on the renderpass.
-                if clip_rect[0] < fb_width
-                    && clip_rect[1] < fb_height
-                    && clip_rect[2] >= 0.0
-                    && clip_rect[3] >= 0.0
-                {
-                    let scissors = (
-                        clip_rect[0].max(0.0).floor() as u32,
-                        clip_rect[1].max(0.0).floor() as u32,
-                        (clip_rect[2] - clip_rect[0]).abs().ceil() as u32,
-                        (clip_rect[3] - clip_rect[1]).abs().ceil() as u32,
+                    render_pass.set_bind_group(
+                        1,
+                        bind_groups
+                            .get(palette_id.0)
+                            .ok_or(PaintError::InvalidPalette(palette_id))?,
+                        &[],
+                    );
+                    render_pass.set_scissor_rect(
+                        clip_min[0].floor() as u32,
+                        clip_min[1].floor() as u32,
+                        (clip_max[0] - clip_min[0]).ceil() as u32,
+                        (clip_max[1] - clip_min[1]).ceil() as u32,
                     );
 
-                    // XXX: Work-around for wgpu issue [1] by only issuing draw
-                    // calls if the scissor rect is valid (by wgpu's flawed
-                    // logic). Regardless, a zero-width or zero-height scissor
-                    // is essentially a no-op render anyway, so just skip it.
-                    // [1]: https://github.com/gfx-rs/wgpu/issues/1750
-                    if scissors.2 > 0 && scissors.3 > 0 {
-                        render_pass
-                            .set_scissor_rect(scissors.0, scissors.1, scissors.2, scissors.3);
-
-                        // Draw the current batch of vertices with the renderpass.
-                        render_pass.draw_indexed(
-                            elem.idx_offset as u32..(elem.idx_offset + elem.idx_count) as u32,
-                            elem.vtx_offset as i32,
-                            0..1,
-                        );
-                    }
+                    // Draw the current batch of vertices with the renderpass.
+                    render_pass.draw_indexed(
+                        elem.idx_offset as u32..(elem.idx_offset + elem.idx_count) as u32,
+                        elem.vtx_offset as i32,
+                        0..1,
+                    );
                 }
             }
         }
@@ -438,72 +390,9 @@ impl Painter {
         Ok(())
     }
 
-    fn update_buffers(&mut self, paint_data: &PaintData) {
-        let width = paint_data.size[0];
-        let height = paint_data.size[1];
-
-        let offset_x = paint_data.pos[0] / width;
-        let offset_y = paint_data.pos[1] / height;
-
-        // Create and update the transform matrix for the current frame.
-        // This is required to adapt to vulkan coordinates.
-        // let matrix = [
-        //     [2.0 / width, 0.0, 0.0, 0.0],
-        //     [0.0, 2.0 / height as f32, 0.0, 0.0],
-        //     [0.0, 0.0, -1.0, 0.0],
-        //     [-1.0, -1.0, 0.0, 1.0],
-        // ];
-        let matrix = [
-            [2.0 / width, 0.0, 0.0, 0.0],
-            [0.0, 2.0 / -height as f32, 0.0, 0.0],
-            [0.0, 0.0, 1.0, 0.0],
-            [-1.0 - offset_x * 2.0, 1.0 + offset_y * 2.0, 0.0, 1.0],
-        ];
-
-        self.renderer
-            .queue()
-            .write_buffer(&self.uniform_buffer, 0, bytemuck::bytes_of(&matrix));
-
-        let vertex_buffer_size = paint_data.vtx_buffer_bytes() as u64;
-        let index_buffer_size = paint_data.idx_buffer_bytes() as u64;
-
-        if self.vertex_buffer_size < vertex_buffer_size {
-            self.vertex_buffer = self.renderer.device().create_buffer(&BufferDescriptor {
-                label: Some("Painter Vertex Buffer"),
-                size: vertex_buffer_size,
-                usage: BufferUsages::VERTEX | BufferUsages::COPY_DST,
-                mapped_at_creation: false,
-            });
-            self.vertex_buffer_size = vertex_buffer_size;
-        }
-
-        self.renderer.queue().write_buffer(
-            &self.vertex_buffer,
-            0,
-            bytemuck::cast_slice(&paint_data.vtx_buffer[..]),
-        );
-
-        if self.index_buffer_size < index_buffer_size {
-            self.index_buffer = self.renderer.device().create_buffer(&BufferDescriptor {
-                label: Some("Painter Index Buffer"),
-                size: index_buffer_size,
-                usage: BufferUsages::INDEX | BufferUsages::COPY_DST,
-                mapped_at_creation: false,
-            });
-            self.index_buffer_size = index_buffer_size;
-        }
-
-        self.renderer.queue().write_buffer(
-            &self.index_buffer,
-            0,
-            bytemuck::cast_slice(&paint_data.idx_buffer[..]),
-        );
-    }
-
-    fn recreate_pipeline(&mut self) -> RenderPipeline {
-        self.renderer
-            .device()
-            .create_render_pipeline(&RenderPipelineDescriptor {
+    fn recreate_pipeline(&mut self) {
+        self.pipeline = Some(self.renderer.device().create_render_pipeline(
+            &RenderPipelineDescriptor {
                 label: Some("Painter pipeline"),
                 layout: Some(&self.pipeline_layout),
                 vertex: VertexState {
@@ -565,13 +454,15 @@ impl Painter {
                         write_mask: ColorWrites::ALL,
                     }],
                 }),
-            })
+            },
+        ));
     }
 }
 
+#[derive(Debug)]
 pub struct PaintData {
-    pub pos: [f32; 2],
-    pub size: [f32; 2],
+    pos: [f32; 2],
+    size: [f32; 2],
 
     vtx_buffer: Vec<PaintVtx>,
     idx_buffer: Vec<PaintIdx>,
@@ -589,12 +480,20 @@ impl PaintData {
         }
     }
 
-    pub fn vtx_buffer_bytes(&self) -> usize {
-        self.vtx_buffer.len() * std::mem::size_of::<PaintVtx>()
+    pub fn set_pos(&mut self, pos: [f32; 2]) {
+        self.pos = pos;
     }
 
-    pub fn idx_buffer_bytes(&self) -> usize {
-        self.idx_buffer.len() * std::mem::size_of::<PaintVtx>()
+    pub fn set_size(&mut self, size: [f32; 2]) {
+        self.size = size;
+    }
+
+    pub fn vtx_buffer(&self) -> &[PaintVtx] {
+        &self.vtx_buffer[..]
+    }
+
+    pub fn idx_buffer(&self) -> &[PaintIdx] {
+        &self.idx_buffer[..]
     }
 
     pub fn reserve(&mut self, vtx_count: usize, idx_count: usize, elem_count: usize) {
@@ -606,36 +505,30 @@ impl PaintData {
         self.elements.reserve(elem_count);
     }
 
-    // pub fn vtx_buffer(&self) -> &[PaintVtx] {
-    //     &self.vtx_buffer[..]
-    // }
+    pub fn add_vtx_sub_buffer(&mut self, buffer: &[PaintVtx]) {
+        self.vtx_buffer.extend_from_slice(buffer);
+    }
 
-    // pub fn idx_buffer(&self) -> &[PaintIdx] {
-    //     &self.idx_buffer[..]
-    // }
+    pub fn add_idx_sub_buffer(&mut self, buffer: &[PaintIdx]) {
+        self.idx_buffer.extend_from_slice(buffer);
+    }
 
-    // pub fn add_element(
-    //     &mut self,
-    //     clip_rect: [f32; 4],
-    //     palette: PaletteId,
-    //     index_offset: usize,
-    //     indices: &[PaintIdx],
-    //     vertices: &[PaintVtx],
-    // ) {
-
-    // }
+    pub fn add_element(&mut self, elem: PaintElement) {
+        self.elements.push(elem);
+    }
 }
 
+#[derive(Debug)]
 pub struct PaintElement {
     pub idx_count: usize,
     pub clip_rect: [f32; 4],
-    pub palette: PaletteId,
+    pub palette_id: PaletteId,
     pub vtx_offset: usize,
     pub idx_offset: usize,
 }
 
 #[repr(C)]
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 pub struct PaintVtx {
     pub pos: [f32; 2],
     pub uv: [f32; 2],
@@ -646,7 +539,7 @@ unsafe impl bytemuck::Pod for PaintVtx {}
 unsafe impl bytemuck::Zeroable for PaintVtx {}
 
 #[repr(transparent)]
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 pub struct PaintIdx(u16);
 
 unsafe impl bytemuck::Pod for PaintIdx {}
@@ -663,7 +556,8 @@ pub struct PaletteDescriptor<'a> {
 pub struct Palette {
     texture: Texture,
     view: TextureView,
-    bind_group: BindGroup,
+    registry: Arc<Mutex<BindGroupRegistry>>,
+    id: usize,
     width: u32,
     height: u32,
     is_srgb: bool,
@@ -705,49 +599,183 @@ impl Palette {
     pub fn view(&self) -> &wgpu::TextureView {
         &self.view
     }
+
+    pub fn id(&self) -> PaletteId {
+        PaletteId(self.id)
+    }
+
+    pub fn image_id(&self) -> imgui::TextureId {
+        imgui::TextureId::from(self.id)
+    }
+}
+
+impl Drop for Palette {
+    fn drop(&mut self) {
+        self.registry.lock().unwrap().remove(self.id);
+    }
 }
 
 /// Generic texture mapping for use by renderers.
-struct PaletteRegistry {
-    palettes: HashMap<usize, Palette>,
+struct BindGroupRegistry {
+    bind_groups: HashMap<usize, BindGroup>,
     next: usize,
 }
 
-impl PaletteRegistry {
+impl BindGroupRegistry {
     // TODO: hasher like rustc_hash::FxHashMap or something would let this be
     // `const fn`
     fn new() -> Self {
-        Self {
-            palettes: HashMap::new(),
+        BindGroupRegistry {
+            bind_groups: HashMap::new(),
             next: 1, // 0 should always be an invalid key
         }
     }
 
-    fn insert(&mut self, palette: Palette) -> PaletteId {
+    fn insert(&mut self, bind_group: BindGroup) -> usize {
         let id = self.next;
-        self.palettes.insert(id, palette);
+        self.bind_groups.insert(id, bind_group);
         self.next += 1;
-        PaletteId(id)
+        id
     }
 
-    fn replace(&mut self, id: PaletteId, palette: Palette) -> Option<Palette> {
-        self.palettes.insert(id.0, palette)
+    // fn replace(&mut self, id: usize, bind_group: BindGroup) -> Option<BindGroup> {
+    //     self.bind_groups.insert(id, bind_group)
+    // }
+
+    fn remove(&mut self, id: usize) -> Option<BindGroup> {
+        self.bind_groups.remove(&id)
     }
 
-    fn remove(&mut self, id: PaletteId) -> Option<Palette> {
-        self.palettes.remove(&id.0)
-    }
-
-    fn get(&self, id: PaletteId) -> Option<&Palette> {
-        self.palettes.get(&id.0)
-    }
-
-    fn get_mut(&mut self, id: PaletteId) -> Option<&mut Palette> {
-        self.palettes.get_mut(&id.0)
+    fn get(&self, id: usize) -> Option<&BindGroup> {
+        self.bind_groups.get(&id)
     }
 }
 
-struct ResizableBuffer {
-    buffer: Buffer,
-    size: usize,
+struct PainterBuffers {
+    staging_buffer: Vec<u8>,
+    vertex_buffer: Buffer,
+    vertex_buffer_size: u64,
+    index_buffer: Buffer,
+    index_buffer_size: u64,
+    uniform_buffer: Buffer,
+}
+
+impl PainterBuffers {
+    fn new(renderer: &Renderer) -> Self {
+        let initial_size = 1024 * 1024;
+        let uniform_size = 16;
+        let staging_buffer = vec![0u8; initial_size as usize];
+        let vertex_buffer = renderer.device().create_buffer(&BufferDescriptor {
+            label: Some("Painter Vertex Buffer"),
+            size: initial_size,
+            usage: BufferUsages::VERTEX | BufferUsages::COPY_DST,
+            mapped_at_creation: false,
+        });
+
+        let index_buffer = renderer.device().create_buffer(&BufferDescriptor {
+            label: Some("Painter Index Buffer"),
+            size: initial_size,
+            usage: BufferUsages::INDEX | BufferUsages::COPY_DST,
+            mapped_at_creation: false,
+        });
+
+        let uniform_buffer = renderer.device().create_buffer(&BufferDescriptor {
+            label: Some("Painter Uniform Buffer"),
+            size: uniform_size,
+            usage: BufferUsages::UNIFORM | BufferUsages::COPY_DST,
+            mapped_at_creation: false,
+        });
+
+        Self {
+            staging_buffer,
+            vertex_buffer,
+            vertex_buffer_size: initial_size,
+            index_buffer,
+            index_buffer_size: initial_size,
+            uniform_buffer,
+        }
+    }
+
+    fn update(&mut self, renderer: &Renderer, paint_data: &PaintData) {
+        // let l = paint_data.pos[0];
+        // let r = paint_data.pos[0] + paint_data.size[0];
+        // let t = paint_data.pos[1];
+        // let b = paint_data.pos[1] + paint_data.size[1];
+
+        // let matrix = [
+        //     [2.0 / (r - l), 0.0, 0.0, 0.0],
+        //     [0.0, 2.0 / (t - b), 0.0, 0.0],
+        //     [0.0, 0.0, 1.0, 0.0],
+        //     [(r + l) / (r - l), (t + b) / (b - t), 0.5, 1.0],
+        // ];
+        let scale = [2.0 / paint_data.size[0], -2.0 / paint_data.size[1]];
+        let translate = [
+            -1.0 - paint_data.pos[0] * scale[0],
+            1.0 + paint_data.pos[1] * scale[1],
+        ];
+
+        let uniform_data = [scale, translate];
+
+        renderer
+            .queue()
+            .write_buffer(&self.uniform_buffer, 0, bytemuck::bytes_of(&uniform_data));
+
+        fn apply_copy_alignment(len: usize) -> u64 {
+            // Valid vulkan usage is
+            // 1. buffer size must be a multiple of COPY_BUFFER_ALIGNMENT.
+            // 2. buffer size must be greater than 0.
+            // Therefore we round the value up to the nearest multiple, and ensure it's at least COPY_BUFFER_ALIGNMENT.
+            let align_mask = wgpu::COPY_BUFFER_ALIGNMENT - 1;
+            ((len as u64 + align_mask) & !align_mask).max(wgpu::COPY_BUFFER_ALIGNMENT)
+        }
+
+        use std::mem::size_of;
+
+        let vertex_buffer_size =
+            apply_copy_alignment(paint_data.vtx_buffer().len() * size_of::<PaintVtx>());
+        let index_buffer_size =
+            apply_copy_alignment(paint_data.idx_buffer().len() * size_of::<PaintIdx>());
+
+        if self.vertex_buffer_size < vertex_buffer_size {
+            self.vertex_buffer = renderer.device().create_buffer(&BufferDescriptor {
+                label: Some("Painter Vertex Buffer"),
+                size: vertex_buffer_size,
+                usage: BufferUsages::VERTEX | BufferUsages::COPY_DST,
+                mapped_at_creation: false,
+            });
+            self.vertex_buffer_size = vertex_buffer_size;
+        }
+
+        self.staging_buffer.clear();
+        self.staging_buffer.reserve(vertex_buffer_size as usize);
+        self.staging_buffer
+            .extend_from_slice(bytemuck::cast_slice(paint_data.vtx_buffer()));
+
+        self.staging_buffer.resize(vertex_buffer_size as usize, 0);
+
+        renderer
+            .queue()
+            .write_buffer(&self.vertex_buffer, 0, &self.staging_buffer[..]);
+
+        if self.index_buffer_size < index_buffer_size {
+            self.index_buffer = renderer.device().create_buffer(&BufferDescriptor {
+                label: Some("Painter Index Buffer"),
+                size: index_buffer_size,
+                usage: BufferUsages::INDEX | BufferUsages::COPY_DST,
+                mapped_at_creation: false,
+            });
+            self.index_buffer_size = index_buffer_size;
+        }
+
+        self.staging_buffer.clear();
+        self.staging_buffer.reserve(index_buffer_size as usize);
+        self.staging_buffer
+            .extend_from_slice(bytemuck::cast_slice(paint_data.idx_buffer()));
+
+        self.staging_buffer.resize(index_buffer_size as usize, 0);
+
+        renderer
+            .queue()
+            .write_buffer(&self.index_buffer, 0, &self.staging_buffer[..]);
+    }
 }

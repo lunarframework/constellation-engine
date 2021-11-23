@@ -93,8 +93,8 @@ impl Canvas {
         self.window.scale_factor()
     }
 
-    pub fn logical_size(&self) -> (f64, f64) {
-        let size = self.window.inner_size().to_logical(self.scale_factor());
+    pub fn size(&self) -> (u32, u32) {
+        let size = self.window.inner_size();
         (size.width, size.height)
     }
 }

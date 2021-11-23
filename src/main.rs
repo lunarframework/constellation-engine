@@ -1,4 +1,4 @@
-mod app;
+pub mod app;
 
 use log::info;
 use winit::event::Event;

@@ -1,6 +1,7 @@
 [[block]]
 struct Uniforms {
-    u_Matrix: mat4x4<f32>;
+    uscale: vec2<f32>;
+    utranslate: vec2<f32>;
 };
 
 struct VertexInput {
@@ -23,7 +24,7 @@ fn vs_main(in: VertexInput) -> VertexOutput {
     var out: VertexOutput;
     out.v_UV = in.a_UV;
     out.v_Color = in.a_Color;
-    out.v_Position = uniforms.u_Matrix * vec4<f32>(in.a_Pos.xy, 0.0, 1.0);
+    out.v_Position = vec4<f32>(in.a_Pos.xy * uniforms.uscale + uniforms.utranslate, 0.0, 1.0);
     return out;
 }
 
