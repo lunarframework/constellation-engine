@@ -48,7 +48,7 @@ pub trait App {
 pub struct Program {
     // Window
     window: Arc<Window>,
-    renderer: Arc<Renderer>,
+    _renderer: Arc<Renderer>,
 
     // State tracking
     active: bool,
@@ -76,7 +76,7 @@ impl App for Program {
 
         Self {
             window,
-            renderer,
+            _renderer: renderer,
 
             active: true,
             should_close: false,
@@ -134,8 +134,6 @@ impl App for Program {
 
                         ui.text("Welcome to Constellation Engine!");
                     });
-
-                ui.show_demo_window(&mut true);
             });
 
             self.window.request_redraw();

@@ -1,7 +1,6 @@
 use log::info;
 use wgpu::{
-    PresentMode, Surface, SurfaceConfiguration, SurfaceTexture, Texture, TextureFormat,
-    TextureUsages,
+    PresentMode, Surface, SurfaceConfiguration, SurfaceTexture, TextureFormat, TextureUsages,
 };
 use winit::event::WindowEvent;
 use winit::window::{Window, WindowId};

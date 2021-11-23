@@ -1,5 +1,5 @@
 use imgui::{BackendFlags, ConfigFlags, Context, FontAtlasRefMut, Io, Key, StyleColor, Ui};
-use winit::dpi::{LogicalPosition, LogicalSize};
+use winit::dpi::LogicalPosition;
 use winit::event::{
     DeviceEvent, DeviceId, ElementState, KeyboardInput, MouseButton, MouseScrollDelta, TouchPhase,
     VirtualKeyCode, WindowEvent,
@@ -105,7 +105,6 @@ impl UiManager {
             io.display_size = [logical_size.width as f32, logical_size.height as f32];
         }
         {
-            let style = &mut context.style_mut();
             // style[StyleColor::WindowBg] = [0.1, 0.105, 0.11, 1.0];
 
             // // Headers
