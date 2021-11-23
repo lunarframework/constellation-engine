@@ -1,4 +1,4 @@
-use imgui::{BackendFlags, ConfigFlags, Context, FontAtlasRefMut, Io, Key, Ui};
+use imgui::{BackendFlags, ConfigFlags, Context, FontAtlasRefMut, Io, Key, StyleColor, Ui};
 use winit::dpi::{LogicalPosition, LogicalSize};
 use winit::event::{
     DeviceEvent, DeviceId, ElementState, KeyboardInput, MouseButton, MouseScrollDelta, TouchPhase,
@@ -104,6 +104,127 @@ impl UiManager {
             let logical_size = window.inner_size().to_logical::<f32>(window.scale_factor());
             io.display_size = [logical_size.width as f32, logical_size.height as f32];
         }
+        {
+            let style = &mut context.style_mut();
+            // style[StyleColor::WindowBg] = [0.1, 0.105, 0.11, 1.0];
+
+            // // Headers
+            // style[StyleColor::Header] = [0.2, 0.205, 0.21, 1.0];
+            // style[StyleColor::HeaderHovered] = [0.3, 0.305, 0.31, 1.0];
+            // style[StyleColor::HeaderActive] = [0.15, 0.1505, 0.151, 1.0];
+
+            // // Buttons
+            // style[StyleColor::Button] = [0.2, 0.205, 0.21, 1.0];
+            // style[StyleColor::ButtonHovered] = [0.3, 0.305, 0.31, 1.0];
+            // style[StyleColor::ButtonActive] = [0.15, 0.1505, 0.151, 1.0];
+
+            // // Frame background
+            // style[StyleColor::FrameBg] = [0.2, 0.205, 0.21, 1.0];
+            // style[StyleColor::FrameBgHovered] = [0.3, 0.305, 0.31, 1.0];
+            // style[StyleColor::FrameBgActive] = [0.15, 0.1505, 0.151, 1.0];
+
+            // // Tabs
+            // style[StyleColor::Tab] = [0.15, 0.1505, 0.151, 1.0];
+            // style[StyleColor::TabHovered] = [0.38, 0.3805, 0.381, 1.0];
+            // style[StyleColor::TabActive] = [0.28, 0.2805, 0.281, 1.0];
+            // style[StyleColor::TabUnfocused] = [0.15, 0.1505, 0.151, 1.0];
+            // style[StyleColor::TabUnfocusedActive] = [0.2, 0.205, 0.21, 1.0];
+
+            // // Title
+            // style[StyleColor::TitleBg] = [0.15, 0.1505, 0.151, 1.0];
+            // style[StyleColor::TitleBgActive] = [0.15, 0.1505, 0.151, 1.0];
+            // style[StyleColor::TitleBgCollapsed] = [0.15, 0.1505, 0.151, 1.0];
+
+            // // Resize grip
+            // style[StyleColor::ResizeGrip] = [0.91, 0.91, 0.91, 0.25];
+            // style[StyleColor::ResizeGripHovered] = [0.81, 0.81, 0.81, 0.67];
+            // style[StyleColor::ResizeGripActive] = [0.46, 0.46, 0.46, 0.95];
+
+            // // Scrollbar
+            // style[StyleColor::ScrollbarBg] = [0.02, 0.02, 0.02, 0.53];
+            // style[StyleColor::ScrollbarGrab] = [0.31, 0.31, 0.31, 1.0];
+            // style[StyleColor::ScrollbarGrabHovered] = [0.41, 0.41, 0.41, 1.0];
+            // style[StyleColor::ScrollbarGrabActive] = [0.51, 0.51, 0.51, 1.0];
+
+            // // Check mark
+            // style[StyleColor::CheckMark] = [0.94, 0.94, 0.94, 1.0];
+
+            // // Slider
+            // style[StyleColor::SliderGrab] = [0.51, 0.51, 0.51, 0.7];
+            // style[StyleColor::CheckMark] = [0.66, 0.66, 0.66, 1.0];
+
+            fn color_from_rgb(r: u8, g: u8, b: u8) -> [f32; 4] {
+                [r as f32 / 255.0, g as f32 / 255.0, b as f32 / 255.0, 1.0]
+            }
+
+            let bg_color = color_from_rgb(37, 37, 38);
+            let light_bg_color = color_from_rgb(82, 82, 85);
+            let very_light_bg_color = color_from_rgb(90, 90, 95);
+
+            let panel_color = color_from_rgb(51, 51, 55);
+            let panel_hover_color = color_from_rgb(29, 151, 236);
+            let panel_active_color = color_from_rgb(0, 119, 200);
+
+            let text_color = color_from_rgb(255, 255, 255);
+            let text_disabled_color = color_from_rgb(151, 151, 151);
+            let border_color = color_from_rgb(78, 78, 78);
+
+            let style = &mut context.style_mut();
+
+            style[StyleColor::Text] = text_color;
+            style[StyleColor::TextDisabled] = text_disabled_color;
+            style[StyleColor::TextSelectedBg] = panel_active_color;
+            style[StyleColor::WindowBg] = bg_color;
+            style[StyleColor::ChildBg] = bg_color;
+            style[StyleColor::PopupBg] = bg_color;
+            style[StyleColor::Border] = border_color;
+            style[StyleColor::BorderShadow] = border_color;
+            style[StyleColor::FrameBg] = panel_color;
+            style[StyleColor::FrameBgHovered] = panel_hover_color;
+            style[StyleColor::FrameBgActive] = panel_active_color;
+            style[StyleColor::TitleBg] = bg_color;
+            style[StyleColor::TitleBgActive] = bg_color;
+            style[StyleColor::TitleBgCollapsed] = bg_color;
+            style[StyleColor::MenuBarBg] = panel_color;
+            style[StyleColor::ScrollbarBg] = panel_color;
+            style[StyleColor::ScrollbarGrab] = light_bg_color;
+            style[StyleColor::ScrollbarGrabHovered] = very_light_bg_color;
+            style[StyleColor::ScrollbarGrabActive] = very_light_bg_color;
+            style[StyleColor::CheckMark] = panel_active_color;
+            style[StyleColor::SliderGrab] = panel_hover_color;
+            style[StyleColor::SliderGrabActive] = panel_active_color;
+            style[StyleColor::Button] = panel_color;
+            style[StyleColor::ButtonHovered] = panel_hover_color;
+            style[StyleColor::ButtonActive] = panel_hover_color;
+            style[StyleColor::Header] = panel_color;
+            style[StyleColor::HeaderHovered] = panel_hover_color;
+            style[StyleColor::HeaderActive] = panel_active_color;
+            style[StyleColor::Separator] = border_color;
+            style[StyleColor::SeparatorHovered] = border_color;
+            style[StyleColor::SeparatorActive] = border_color;
+            style[StyleColor::ResizeGrip] = bg_color;
+            style[StyleColor::ResizeGripHovered] = panel_color;
+            style[StyleColor::ResizeGripActive] = light_bg_color;
+            style[StyleColor::PlotLines] = panel_active_color;
+            style[StyleColor::PlotLinesHovered] = panel_hover_color;
+            style[StyleColor::PlotHistogram] = panel_active_color;
+            style[StyleColor::PlotHistogramHovered] = panel_hover_color;
+            style[StyleColor::DragDropTarget] = bg_color;
+            style[StyleColor::NavHighlight] = bg_color;
+            style[StyleColor::Tab] = bg_color;
+            style[StyleColor::TabActive] = panel_active_color;
+            style[StyleColor::TabUnfocused] = bg_color;
+            style[StyleColor::TabUnfocusedActive] = panel_active_color;
+            style[StyleColor::TabHovered] = panel_hover_color;
+
+            style.window_rounding = 0.0;
+            style.child_rounding = 0.0;
+            style.frame_rounding = 0.0;
+            style.grab_rounding = 0.0;
+            style.popup_rounding = 0.0;
+            style.scrollbar_rounding = 0.0;
+            style.tab_rounding = 0.0;
+        }
 
         Self {
             context,
@@ -125,7 +246,7 @@ impl UiManager {
             label: Some("Imgui Font Atlas"),
             width: handle.width,
             height: handle.height,
-            srgb: false,
+            srgb: true,
             renderable: false,
         });
 
