@@ -18,7 +18,7 @@ pub struct Canvas {
 }
 
 impl Canvas {
-    pub fn new(window: Arc<Window>, renderer: Arc<Renderer>) -> Self {
+    pub fn new(window: Arc<Window>, renderer: Arc<Renderer>, format: TextureFormat) -> Self {
         info!("Initializing Canvas");
         let surface = unsafe {
             renderer
@@ -26,7 +26,7 @@ impl Canvas {
                 .create_surface::<Window>(window.borrow())
         };
 
-        let format = surface.get_preferred_format(renderer.adapter()).unwrap();
+        // let format = surface.get_preferred_format(renderer.adapter()).unwrap();
 
         surface.configure(
             renderer.device(),
@@ -52,23 +52,23 @@ impl Canvas {
             match event {
                 WindowEvent::Resized(size) => {
                     if size.width > 0 && size.height > 0 {
-                        let format = self
-                            .surface
-                            .get_preferred_format(self.renderer.adapter())
-                            .unwrap();
+                        // let format = self
+                        //     .surface
+                        //     .get_preferred_format(self.renderer.adapter())
+                        //     .unwrap();
 
                         self.surface.configure(
                             self.renderer.device(),
                             &SurfaceConfiguration {
                                 usage: TextureUsages::RENDER_ATTACHMENT,
-                                format: format,
+                                format: self.format,
                                 width: size.width,
                                 height: size.height,
                                 present_mode: PresentMode::Fifo,
                             },
                         );
 
-                        self.format = format;
+                        // self.format = format;
                     }
                 }
                 _ => {}
