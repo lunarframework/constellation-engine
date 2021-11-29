@@ -1,14 +1,15 @@
 pub mod app;
-pub mod ui;
+pub mod state;
 
 // pub mod physics;
+
+pub use app::{App, Program};
+pub use state::{HomeState, InitialDataState, MainPanel, MenuBar, StateManager};
 
 use log::info;
 use winit::event::Event;
 use winit::event_loop::{ControlFlow, EventLoop};
 use winit::window::WindowBuilder;
-
-pub use app::{App, Program};
 
 fn main() {
     env_logger::init();

@@ -1,81 +1,85 @@
 use egui::{CtxRef, Ui};
 
-pub struct FileUi {
-    enable_menu: bool,
+use crate::InitialDataState;
+use crate::StateManager;
+
+pub struct FileMenu {
+    enable: bool,
 
     // New interface
-    new: Option<NewSimulationUi>,
+    new_dialog: Option<NewDialog>,
 }
 
-impl FileUi {
+impl FileMenu {
     pub fn new() -> Self {
         Self {
-            enable_menu: false,
+            enable: false,
 
-            new: None,
+            new_dialog: None,
         }
     }
 
-    pub fn append_menu(&mut self, ui: &mut Ui) {
+    pub fn append(&mut self, ui: &mut Ui, _manager: &mut StateManager) {
         egui::menu::menu(ui, "File", |ui| {
             ui.group(|ui| {
-                ui.set_enabled(self.enable_menu);
+                ui.set_enabled(self.enable);
                 if ui.button("New").clicked() {
-                    self.new = Some(NewSimulationUi::new());
+                    self.new_dialog = Some(NewDialog::new());
                 }
 
                 if ui.button("Open").clicked() {}
             });
         });
 
-        self.enable_menu = self.new.is_none();
+        self.enable = self.new_dialog.is_none();
     }
 
-    pub fn show_active_windows(&mut self, ctx: &CtxRef) {
+    pub fn show(&mut self, ctx: &CtxRef, manager: &mut StateManager) {
         let mut opened = true;
-        if let Some(ref mut new) = self.new {
-            new.show(ctx, &mut opened);
+        if let Some(ref mut dialog) = self.new_dialog {
+            dialog.show(ctx, manager, &mut opened);
         }
 
         if !(opened) {
-            self.new = None;
+            self.new_dialog = None;
         }
     }
 }
 
-#[derive(Debug, PartialEq, Eq)]
-enum Dimenson {
-    One,
-    Two,
-    Three,
-}
+// #[derive(Debug, PartialEq, Eq)]
+// enum Dimenson {
+//     One,
+//     Two,
+//     Three,
+// }
 
-#[derive(Debug, PartialEq, Eq)]
-enum Method {
-    FiniteDiff,
-}
+// #[derive(Debug, PartialEq, Eq)]
+// enum Method {
+//     FiniteDiff,
+// }
 
-pub struct NewSimulationUi {
+pub struct NewDialog {
     name: String,
-    dim: Dimenson,
-    method: Method,
-    rmax: f64,
-    dr: f64,
+    // dim: Dimenson,
+    // method: Method,
+    maxr: f64,
+    nr: usize,
 }
 
-impl NewSimulationUi {
+impl NewDialog {
     pub fn new() -> Self {
         Self {
             name: String::from("Untitled"),
-            dim: Dimenson::One,
-            method: Method::FiniteDiff,
-            rmax: 1.0,
-            dr: 0.5,
+            // dim: Dimenson::One,
+            // method: Method::FiniteDiff,
+            maxr: 1.0,
+            nr: 2,
         }
     }
 
-    pub fn show(&mut self, ctx: &CtxRef, opened: &mut bool) {
-        egui::Window::new("New Simulation")
+    pub fn show(&mut self, ctx: &CtxRef, manager: &mut StateManager, opened: &mut bool) {
+        let mut should_close = false;
+        egui::Window::new("New Document")
             .open(opened)
             .resizable(true)
             .default_width(300.0)
@@ -130,20 +134,28 @@ impl NewSimulationUi {
                         // ui.end_row();
                         ui.label("Max Radius");
                         ui.add(
-                            egui::DragValue::new(&mut self.rmax)
+                            egui::DragValue::new(&mut self.maxr)
                                 .speed(0.1)
-                                .clamp_range(0.0..=10000.0),
+                                .clamp_range::<f64>(0.0..=10000.0),
                         );
                         ui.end_row();
 
-                        ui.label("Delta R");
+                        ui.label("Num Grid Points");
                         ui.add(
-                            egui::DragValue::new(&mut self.dr)
+                            egui::DragValue::new(&mut self.nr)
                                 .speed(0.1)
-                                .clamp_range(0.0..=10000.0),
+                                .clamp_range::<usize>(2..=10000),
                         );
                         ui.end_row();
                     });
+
+                ui.separator();
+                if ui.button("Create").clicked() {
+                    manager.enqueue(InitialDataState::new(self.name.clone(), self.maxr, self.nr));
+                    should_close = true;
+                }
             });
+
+        *opened &= !should_close;
     }
 }
