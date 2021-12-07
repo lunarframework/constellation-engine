@@ -20,7 +20,7 @@ impl State for HomeState {
     }
     fn show(&mut self, _ctx: &CtxRef) {}
     fn update(&mut self) {}
-    fn title(&mut self) -> String {
-        String::from("Welcome") 
+    fn title(&mut self) -> &str {
+        "Welcome" 
     }
 }

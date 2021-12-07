@@ -45,7 +45,7 @@ impl StateManager {
         self.state.update();
     }
 
-    pub fn title(&mut self) -> String {
+    pub fn title(&mut self) -> &str {
         self.state.title()
     }
 }
@@ -58,5 +58,5 @@ pub trait State: 'static {
     /// Performs additional calculations and syncronization seperate from the Ui.
     fn update(&mut self);
     /// Title of the window in this state
-    fn title(&mut self) -> String;
+    fn title(&mut self) -> &str;
 }

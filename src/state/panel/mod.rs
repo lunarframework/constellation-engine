@@ -8,6 +8,8 @@ impl MainPanel {
     }
 
     pub fn show(&mut self, ctx: &egui::CtxRef, manager: &mut StateManager) {
-        egui::CentralPanel::default().show(ctx, |ui| manager.view(ui));
+        egui::CentralPanel::default().show(ctx, |ui| {
+            manager.view(ui);
+        });
     }
 }
