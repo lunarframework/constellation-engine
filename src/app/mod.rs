@@ -4,9 +4,7 @@ pub mod render;
 use frame::Framework;
 use render::Renderer;
 
-use crate::MainPanel;
-use crate::MenuBar;
-use crate::StateManager;
+use crate::State;
 
 use winit::event::{DeviceEvent, DeviceId, WindowEvent};
 use winit::window::{Window, WindowId};
@@ -53,9 +51,7 @@ pub struct Program {
     should_close: bool,
 
     frame: Framework,
-    menu_bar: MenuBar,
-    main_panel: MainPanel,
-    manager: StateManager,
+    state: State,
 }
 
 impl App for Program {
@@ -76,9 +72,7 @@ impl App for Program {
             active: true,
             should_close: false,
             frame,
-            menu_bar: MenuBar::new(),
-            main_panel: MainPanel::new(),
-            manager: StateManager::new(),
+            state: State::new(),
         }
     }
 
@@ -114,19 +108,14 @@ impl App for Program {
 
     fn on_redraw_event(&mut self, id: WindowId) {
         if self.window.id() == id && self.active {
-            self.manager.update();
+            self.state.update();
 
             self.frame.begin_frame();
-
-            self.menu_bar.show(&self.frame.context(), &mut self.manager);
-            self.main_panel
-                .show(&self.frame.context(), &mut self.manager);
-            self.manager.show(&self.frame.context());
-
+            self.state.show(&self.frame.context());
             self.frame.end_frame().unwrap();
 
             self.window
-                .set_title(format!("Contellation Engine - {}", self.manager.title()).as_str())
+                .set_title(format!("Contellation Engine - {}", self.state.title()).as_str())
         }
     }
 

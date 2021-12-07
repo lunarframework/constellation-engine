@@ -6,7 +6,7 @@ pub mod ui;
 // pub mod physics;
 
 pub use app::{App, Program};
-pub use state::{HomeState, InitialDataState, MainPanel, MenuBar, StateManager};
+pub use state::State;
 
 use log::info;
 use winit::event::Event;

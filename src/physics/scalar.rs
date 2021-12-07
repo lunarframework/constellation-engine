@@ -14,7 +14,7 @@ pub struct InitialData {
 }
 
 pub struct Simulation {
-    pub wave: Array2<f64>,
+    pub phi: Array2<f64>,
     pub rmax: f64,
     pub tend: f64,
 }
@@ -221,7 +221,11 @@ pub fn simulate(data: InitialData, mut update_callback: impl FnMut(f64)) -> Simu
         wave[(iterations - 1, rindex)] = phi[rindex];
     }
 
-    Simulation { wave, rmax, tend }
+    Simulation {
+        phi: wave,
+        rmax,
+        tend,
+    }
 }
 
 fn interp(a: f64, b: f64, x: f64) -> f64 {
