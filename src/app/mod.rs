@@ -115,7 +115,7 @@ impl App for Program {
             self.frame.end_frame().unwrap();
 
             self.window
-                .set_title(format!("Contellation Engine - {}", self.state.title()).as_str())
+                .set_title(format!("Constellation Engine - {}", self.state.title()).as_str())
         }
     }
 

@@ -20,13 +20,13 @@ impl State {
                     if ui.button("New").clicked() {
                         self.page = Page::InitialData {
                             rmax: 1.0,
-                            points: 100,
+                            points: 10,
                             dist: Distribution::Flat { y: 0.0 },
-                            mass: 1.0,
+                            mass: 0.0,
                             show_psi: false,
                             show_pi: false,
                             tend: 1.0,
-                            iterations: 100,
+                            iterations: 5,
                             simulator: None,
                         }
                     }
@@ -248,29 +248,41 @@ impl State {
                     }); // End horizontal
                 }); // End enabled Ui
             },
-            Page::Simulation { ref mut sim, ref mut time } => {
+            Page::Simulation { ref mut sim, ref mut time_index } => {
                 // Begin Plot group
                 ui.group(|ui| {
 
-                    use egui::plot::{Line, Values, Legend, Plot};
+                    use egui::plot::{Line, Values, Legend, Plot, Value};
 
                     let phi = &sim.phi;
 
                     let time_len = phi.dim().0;
                     let spatial_len = phi.dim().1;
-                    let fraction = *time / sim.tend;
-                    let i = fraction * (time_len - 1) as f64;
+                    // let fraction = *time / sim.tend;
+                    // let i = fraction * (time_len - 1) as f64;
 
-                    let (ilower, iupper) = (i.floor() as usize, i.ceil() as usize);
+                    // let (ilower, iupper) = (i.floor() as usize, i.ceil() as usize);
 
-                    let tinterp = i - i.floor();
+                    // let tinterp = i - i.floor();
 
-                    let lower = phi.index_axis(ndarray::Axis(0), ilower);
-                    let upper = phi.index_axis(ndarray::Axis(0), iupper);
+                    // let lower = phi.index_axis(ndarray::Axis(0), ilower);
+                    // let upper = phi.index_axis(ndarray::Axis(0), iupper);
 
                     // println!("tinterp {}, lower len {}, upper len {}, spatial len {}", tinterp, lower.len(), upper.len(), spatial_len);
 
-                    let phi = Line::new(Values::from_explicit_callback(|_r| 0.0, 0.0..sim.rmax, 2));
+                    // let phi = Line::new(Values::from_explicit_callback(|_r| 0.0, 0.0..sim.rmax, 2));
+
+                    // let phi = Line::new(Values::from_values_iter(lower.iter().zip(upper.iter()).enumerate().map(|(i, (&l, &u))| {
+                    //     let r = i as f64 / (spatial_len - 1) as f64 * sim.rmax; 
+                    //     Value::new(r, crate::math::interp(l, u, tinterp))
+                    // })));
+
+                    // println!("{}", phi.index_axis(ndarray::Axis(0), *time_index).sum());
+
+                    let phi = Line::new(Values::from_values_iter(phi.index_axis(ndarray::Axis(0), *time_index).iter().enumerate().map(|(i, &v)| {
+                         let r = i as f64 / (spatial_len - 1) as f64 * sim.rmax; 
+                        Value::new(r, v)
+                    })));
 
                     let plot = Plot::new("Simulation Plot")
                         .line(phi.name("Phi (Scalar Field)"))
@@ -280,7 +292,7 @@ impl State {
 
                     ui.add(plot);
 
-                    ui.add(egui::Slider::new(time, 0.0..=sim.tend).text("Time (s)"));
+                    ui.add(egui::Slider::new(time_index, 0..=(time_len - 1)).text("Time (s)"));
                     
                 }); // End plot group
             }
@@ -310,7 +322,7 @@ impl State {
                         simulator.take();
                         self.page = Page::Simulation {
                             sim: res,
-                            time: 0.0
+                            time_index: 0
                         }
                     }
                 }
@@ -348,7 +360,7 @@ enum Page {
     },
     Simulation {
         sim: scalar::Simulation,
-        time: f64,
+        time_index: usize,
     },
 }
 

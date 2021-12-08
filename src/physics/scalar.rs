@@ -58,8 +58,6 @@ pub fn simulate(data: InitialData, mut update_callback: impl FnMut(f64)) -> Simu
 
     let mut lapse = Function1::zeros(nr);
     let mut metric = Function1::zeros(nr);
-    let mut dlapse = Function1::zeros(nr);
-    let mut dmetric = Function1::zeros(nr);
 
     // ******************
     // Storage **********
@@ -70,12 +68,14 @@ pub fn simulate(data: InitialData, mut update_callback: impl FnMut(f64)) -> Simu
     // Loop
 
     for i in 0..iterations {
+        println!("Iteration {}", i);
+
         // ****************
         // Storage ********
         // ****************
 
         for rindex in 0..nr {
-            wave[(i, rindex)] = phi[rindex];
+            wave[(i, rindex)] = metric[rindex];
         }
 
         // *******************
@@ -90,30 +90,34 @@ pub fn simulate(data: InitialData, mut update_callback: impl FnMut(f64)) -> Simu
 
         // Update lapse by integrating from center outwards
 
-        let metric_derivative = |metric, r, psi, pi, potential| {
+        // dmetric/dr = metric * (1 - metric^2) / (2 * r) + metric * r / 4 * (psi^2 + pi^2 + 2 * metric^2 * potential)
+        let metric_derivative = |r, metric, psi, pi, potential| {
             let sq_metric = metric * metric;
             let sq_psi = psi * psi;
             let sq_pi = pi * pi;
-            metric
-                * ((1.0 - sq_metric) / (2.0 * r)
-                    + r / 4.0 * (sq_psi + sq_pi + 2.0 * sq_metric * potential))
+            let term0 = (1.0 - sq_metric) / (2.0 * r);
+            let term1 = r / 4.0 * (sq_psi + sq_pi + 2.0 * sq_metric * potential);
+            metric * (term0 + term1)
         };
 
+        // Assume Spatial flatness at origin
         metric[0] = 1.0;
-        dmetric[0] = 0.0;
+        // sq_metric = 1 so dmetric = 0.0 at r = 0
+        let mut dmetric_prev = 0.0;
+        // Thus, by Euler's method, the next metric value is also one
+        metric[1] = 1.0;
 
         for i in 1..(mesh.nr - 1) {
-            dmetric[i] = metric_derivative(metric[i], mesh.r[i], psi[i], pi[i], potential[i]);
-            metric[i + 1] = metric[i] + mesh.dr * (1.5 * dmetric[i] - 0.5 * dmetric[i - 1]);
-        }
+            let dmetric = metric_derivative(mesh.r[i], metric[i], psi[i], pi[i], potential[i]);
+            // println!(
+            //     "Dmetric {}, r {}, psi {}, pi {}, potential {}",
+            //     dmetric, mesh.r[i], psi[i], pi[i], potential[i]
+            // );
 
-        dmetric[mesh.nr - 1] = metric_derivative(
-            metric[mesh.nr - 1],
-            mesh.r[mesh.nr - 1],
-            psi[mesh.nr - 1],
-            pi[mesh.nr - 1],
-            potential[mesh.nr - 1],
-        );
+            metric[i + 1] = metric[i] + mesh.dr * (1.5 * dmetric - 0.5 * dmetric_prev);
+
+            dmetric_prev = dmetric;
+        }
 
         // *******************
         // Update Lapse ******
@@ -121,45 +125,56 @@ pub fn simulate(data: InitialData, mut update_callback: impl FnMut(f64)) -> Simu
 
         // Update lapse by integrating from outside to center
 
-        let lapse_derivative = |r, lapse, metric, dmetric, potential| {
-            lapse
-                * ((dmetric / metric) + (metric * metric - 1.0) / r
-                    - r * metric * metric * potential)
+        let lapse_derivative = |r, metric, lapse, psi, pi, potential| {
+            // **************
+            let sq_metric = metric * metric;
+            let sq_psi = psi * psi;
+            let sq_pi = pi * pi;
+            // **************
+            let term0 = (1.0 - sq_metric) / (2.0 * r)
+                + r / 4.0 * (sq_psi + sq_pi + 2.0 * sq_metric * potential);
+            let term1 = (sq_metric - 1.0) / r;
+            let term2 = r * sq_metric * potential;
+
+            lapse * (term0 + term1 - term2)
         };
 
         lapse[mesh.nr - 1] = 1.0 / metric[mesh.nr - 1];
-        dlapse[mesh.nr - 1] = lapse_derivative(
-            mesh.r[mesh.nr - 1],
-            lapse[mesh.nr - 1],
-            metric[mesh.nr - 1],
-            dmetric[mesh.nr - 1],
-            potential[mesh.nr - 1],
-        );
+        let mut dlapse_prev = 0.0;
+        for i in (1..mesh.nr).rev() {
+            let dlapse =
+                lapse_derivative(mesh.r[i], metric[i], lapse[i], psi[i], pi[i], potential[i]);
 
-        for i in (1..(mesh.nr - 1)).rev() {
-            dlapse[i] = lapse_derivative(mesh.r[i], lapse[i], metric[i], dmetric[i], potential[i]);
+            if i == mesh.nr - 1 {
+                lapse[i - 1] = lapse[i] - mesh.dr * dlapse;
+            } else {
+                lapse[i - 1] = lapse[i] - mesh.dr * (1.5 * dlapse - 0.5 * dlapse_prev);
+            };
 
-            lapse[i - 1] = lapse[i] + mesh.dr * (1.5 * dlapse[i] - 0.5 * dlapse[i + 1]);
+            dlapse_prev = dlapse;
         }
 
-        dlapse[0] = lapse_derivative(mesh.r[0], lapse[0], metric[0], dmetric[0], potential[0]);
+        // println!("Metric {}", metric);
+        // println!("Lapse {}", lapse);
 
         // ******************
         // Update dphi ******
         // ******************
 
+        // dphi/dt = lapse / metric * pi
         Zip::from(&mut dphi)
             .and(&metric)
             .and(&lapse)
-            .and(&phi)
-            .for_each(|dphi, &metric, &lapse, &phi| {
-                *dphi = lapse / metric * phi;
+            .and(&pi)
+            .for_each(|dphi, &metric, &lapse, &pi| {
+                *dphi = lapse / metric * pi;
             });
 
         // *****************
         // Update dpsi *****
         // *****************
 
+        // dpsi/dt = d/dr (lapse / metric * pi)
         let dpsi = mesh.gradient(&dphi);
 
         // *****************
@@ -170,15 +185,17 @@ pub fn simulate(data: InitialData, mut update_callback: impl FnMut(f64)) -> Simu
 
         Zip::from(&mut term)
             .and(&mesh.r)
-            .and(&dphi)
-            .for_each(|t, &r, &d| {
-                *t = r * r * d;
+            .and(&lapse)
+            .and(&metric)
+            .and(&psi)
+            .for_each(|t, &r, &lapse, &metric, &psi| {
+                *t = r * r * lapse * psi / metric;
             });
 
         let gterm = mesh.gradient(&term);
 
         for i in 1..nr {
-            dpi[i] = 1.0 / (mesh.r[i] * mesh.r[i]) * gterm[i] - lapse[i] * metric[i] * psi[i];
+            dpi[i] = 1.0 / (mesh.r[i] * mesh.r[i]) * gterm[i] - lapse[i] * metric[i] * phi[i];
         }
 
         const TWO_TO_ONE_THIRD: f64 = 1.25992104989;
@@ -187,10 +204,22 @@ pub fn simulate(data: InitialData, mut update_callback: impl FnMut(f64)) -> Simu
         let du = dr * dr * dr;
 
         let f0 = 0.0;
-        let f1 = dr * dr * dphi[1];
-        let f2 = TWO_TO_TWO_THIRDS * dr * dr * interp(dphi[1], dphi[2], TWO_TO_ONE_THIRD - 1.0);
+        let f1 = dr * dr * lapse[1] / metric[1] * psi[1];
+        let f2 = TWO_TO_TWO_THIRDS
+            * dr
+            * dr
+            * crate::math::interp(
+                lapse[1] / metric[1] * psi[1],
+                lapse[2] / metric[2] * psi[2],
+                TWO_TO_ONE_THIRD - 1.0,
+            );
 
-        dpi[0] = (f2 - 4.0 * f1 + 3.0 * f0) / (2.0 * du);
+        let dr3 = (f2 - 4.0 * f1 + 3.0 * f0) / (2.0 * du);
+
+        dpi[0] = 3.0 * dr3 - lapse[0] * metric[0] * phi[0];
+
+        // dphi.fill(0.0);
+        // dpsi.fill(0.0);
 
         if i == 0 {
             // First iteration update with euler's method
@@ -218,7 +247,7 @@ pub fn simulate(data: InitialData, mut update_callback: impl FnMut(f64)) -> Simu
     }
 
     for rindex in 0..nr {
-        wave[(iterations - 1, rindex)] = phi[rindex];
+        wave[(iterations, rindex)] = metric[rindex];
     }
 
     Simulation {
@@ -226,10 +255,6 @@ pub fn simulate(data: InitialData, mut update_callback: impl FnMut(f64)) -> Simu
         rmax,
         tend,
     }
-}
-
-fn interp(a: f64, b: f64, x: f64) -> f64 {
-    a + (b - a) * x
 }
 
 struct Mesh {
@@ -263,11 +288,19 @@ impl Mesh {
             .and(f.slice(s![2..]))
             .and(f.slice(s![..(len - 2)]))
             .for_each(|dst, &f1, &f0| {
-                *dst = (f1 - f0) / self.dr;
+                *dst = (f1 - f0) / (2.0 * self.dr);
             });
         gradient[0] = (f[2] - 4.0 * f[1] + 3.0 * f[0]) / (2.0 * self.dr);
         gradient[len - 1] = (f[len - 3] - 4.0 * f[len - 2] + 3.0 * f[len - 1]) / (2.0 * self.dr);
 
         gradient
+    }
+
+    fn gradient3(&self, f: &Function1) -> Function1 {
+        let mut gradient3 = Function1::zeros(self.nr);
+
+        let du = self.dr.powi(3);
+
+        gradient3
     }
 }
