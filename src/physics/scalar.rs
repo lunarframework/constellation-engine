@@ -45,11 +45,13 @@ pub fn simulate(data: InitialData, mut update_callback: impl FnMut(f64)) -> Simu
     let mass = data.mass;
 
     let mut phi = data.wave;
-    let mut psi = mesh.gradient(&phi);
+    let mut psi = Function1::zeros(nr);
+    mesh.gradient(&phi, &mut psi);
+    psi[0] = 0.0; //dr (phi) = 0 at r = 0
     let mut pi = Function1::zeros(nr);
 
     let mut dphi = Function1::zeros(nr);
-    // let mut dpsi;
+    let mut dpsi = Function1::zeros(nr);
     let mut dpi = Function1::zeros(nr);
 
     let mut dphi_prev = Function1::zeros(nr);
@@ -76,8 +78,6 @@ pub fn simulate(data: InitialData, mut update_callback: impl FnMut(f64)) -> Simu
     // Loop
 
     for i in 0..iterations {
-        println!("Iteration {}", i);
-
         // *******************
         // Setup *************
         // *******************
@@ -170,18 +170,24 @@ pub fn simulate(data: InitialData, mut update_callback: impl FnMut(f64)) -> Simu
                 *dphi = lapse / metric * pi;
             });
 
+        // dr (phi) = lapse * pi at r  = 0
+        dphi[0] = lapse[0] * pi[0];
+
         // *****************
         // Update dpsi *****
         // *****************
 
         // dpsi/dt = d/dr (lapse / metric * pi)
-        let dpsi = mesh.gradient(&dphi);
+        mesh.gradient(&dphi, &mut dpsi);
+
+        dpsi[0] = 0.0;
 
         // *****************
         // Update dpi ******
         // *****************
 
         let mut term = Function1::zeros(nr);
+        let mut gterm = Function1::zeros(nr);
 
         Zip::from(&mut term)
             .and(&lapse)
@@ -191,30 +197,17 @@ pub fn simulate(data: InitialData, mut update_callback: impl FnMut(f64)) -> Simu
                 *t = lapse * psi / metric;
             });
 
-        let gterm = mesh.gradient(&term);
+        mesh.gradient(&term, &mut gterm);
 
-        for i in 0..nr {
-            if i == 0 {
-                dpi[i] = 3.0 * gterm[i] - lapse[i] * metric[i] * phi[i];
-
-                // const TWO_TO_ONE_THIRD: f64 = 1.25992104989;
-
-                // let du = dr * dr * dr;
-
-                // let f0 = 0.0;
-                // let f1 = mesh.r[1] * mesh.r[1] * lapse[1] / metric[1] * psi[1];
-                // let f2 = crate::math::interp(
-                //     mesh.r[1] * mesh.r[1] * lapse[1] / metric[1] * psi[1],
-                //     mesh.r[2] * mesh.r[2] * lapse[2] / metric[2] * psi[2],
-                //     TWO_TO_ONE_THIRD - 1.0,
-                // );
-
-                // dpi[i] =
-                //     3.0 * (f2 - 4.0 * f1 + 3.0 * f0) / (2.0 * du) - lapse[i] * metric[i] * phi[i];
-            } else {
-                dpi[i] = gterm[i] + 2.0 / mesh.r[i] * term[i] - lapse[i] * metric[i] * phi[i];
-            }
+        for i in 1..nr {
+            dpi[i] = gterm[i] + 2.0 / mesh.r[i] * term[i] - lapse[i] * metric[i] * phi[i];
         }
+
+        // let d2_dr2_phi = (2.0 * phi[1] - 2.0 * phi[0]) / (mesh.dr * mesh.dr);
+
+        let d2_dr2_phi = psi[1] / mesh.dr;
+
+        dpi[0] = 3.0 * lapse[0] * d2_dr2_phi - lapse[0] * phi[0];
 
         // let mut term = Function1::zeros(nr);
 
@@ -336,25 +329,44 @@ impl Mesh {
         }
     }
 
-    fn gradient(&self, f: &Function1) -> Function1 {
+    fn gradient(&self, f: &Function1, dst: &mut Function1) {
         assert_eq!(f.len(), self.nr);
+        assert_eq!(f.len(), dst.len());
 
-        let mut gradient = Function1::zeros(self.nr);
+        dst.fill(0.0);
 
         let len = f.len();
 
-        Zip::from(gradient.slice_mut(s![1..(len - 1)]))
+        Zip::from(dst.slice_mut(s![1..(len - 1)]))
             .and(f.slice(s![2..]))
             .and(f.slice(s![..(len - 2)]))
             .for_each(|dst, &f1, &f0| {
                 *dst = (f1 - f0) / (2.0 * self.dr);
             });
-        gradient[0] = (-f[2] + 4.0 * f[1] - 3.0 * f[0]) / (2.0 * self.dr);
-        gradient[len - 1] = (f[len - 3] - 4.0 * f[len - 2] + 3.0 * f[len - 1]) / (2.0 * self.dr);
 
-        // gradient[0] = (f[1] - f[0]) / self.dr;
-        // gradient[len - 1] = (f[len - 2] - f[len - 1]) / self.dr;
-
-        gradient
+        dst[0] = (-f[2] + 4.0 * f[1] - 3.0 * f[0]) / (2.0 * self.dr);
+        dst[len - 1] = (f[len - 3] - 4.0 * f[len - 2] + 3.0 * f[len - 1]) / (2.0 * self.dr);
     }
+
+    // fn gradient(&self, f: &Function1) -> Function1 {
+    //     assert_eq!(f.len(), self.nr);
+
+    //     let mut gradient = Function1::zeros(self.nr);
+
+    //     let len = f.len();
+
+    //     Zip::from(gradient.slice_mut(s![1..(len - 1)]))
+    //         .and(f.slice(s![2..]))
+    //         .and(f.slice(s![..(len - 2)]))
+    //         .for_each(|dst, &f1, &f0| {
+    //             *dst = (f1 - f0) / (2.0 * self.dr);
+    //         });
+    //     gradient[0] = (-f[2] + 4.0 * f[1] - 3.0 * f[0]) / (2.0 * self.dr);
+    //     gradient[len - 1] = (f[len - 3] - 4.0 * f[len - 2] + 3.0 * f[len - 1]) / (2.0 * self.dr);
+
+    //     // gradient[0] = (f[1] - f[0]) / self.dr;
+    //     // gradient[len - 1] = (f[len - 2] - f[len - 1]) / self.dr;
+
+    //     gradient
+    // }
 }
