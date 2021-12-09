@@ -279,13 +279,38 @@ impl State {
 
                     // println!("{}", phi.index_axis(ndarray::Axis(0), *time_index).sum());
 
-                    let phi = Line::new(Values::from_values_iter(phi.index_axis(ndarray::Axis(0), *time_index).iter().enumerate().map(|(i, &v)| {
+                    let phi = Line::new(Values::from_values_iter(sim.phi.index_axis(ndarray::Axis(0), *time_index).iter().enumerate().map(|(i, &v)| {
                          let r = i as f64 / (spatial_len - 1) as f64 * sim.rmax; 
                         Value::new(r, v)
                     })));
 
+                    let psi = Line::new(Values::from_values_iter(sim.psi.index_axis(ndarray::Axis(0), *time_index).iter().enumerate().map(|(i, &v)| {
+                         let r = i as f64 / (spatial_len - 1) as f64 * sim.rmax; 
+                        Value::new(r, v)
+                    })));
+
+                    let pi = Line::new(Values::from_values_iter(sim.pi.index_axis(ndarray::Axis(0), *time_index).iter().enumerate().map(|(i, &v)| {
+                         let r = i as f64 / (spatial_len - 1) as f64 * sim.rmax; 
+                        Value::new(r, v)
+                    })));
+
+                    let metric = Line::new(Values::from_values_iter(sim.metric.index_axis(ndarray::Axis(0), *time_index).iter().enumerate().map(|(i, &v)| {
+                         let r = i as f64 / (spatial_len - 1) as f64 * sim.rmax; 
+                        Value::new(r, v)
+                    })));
+
+                    let lapse = Line::new(Values::from_values_iter(sim.lapse.index_axis(ndarray::Axis(0), *time_index).iter().enumerate().map(|(i, &v)| {
+                         let r = i as f64 / (spatial_len - 1) as f64 * sim.rmax; 
+                        Value::new(r, v)
+                    })));
+
+
                     let plot = Plot::new("Simulation Plot")
                         .line(phi.name("Phi (Scalar Field)"))
+                        .line(psi.name("Psi"))
+                        .line(pi.name("Pi"))
+                        .line(metric.name("Metric"))
+                        .line(lapse.name("Lapse"))
                         .data_aspect(1.0)
                         .view_aspect(1.0)
                         .legend(Legend::default());

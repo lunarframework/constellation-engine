@@ -15,6 +15,10 @@ pub struct InitialData {
 
 pub struct Simulation {
     pub phi: Array2<f64>,
+    pub psi: Array2<f64>,
+    pub pi: Array2<f64>,
+    pub lapse: Array2<f64>,
+    pub metric: Array2<f64>,
     pub rmax: f64,
     pub tend: f64,
 }
@@ -63,20 +67,16 @@ pub fn simulate(data: InitialData, mut update_callback: impl FnMut(f64)) -> Simu
     // Storage **********
     // ******************
 
-    let mut wave = Array2::zeros([data.iterations + 1, nr]);
+    let mut phi_storage = Array2::zeros([data.iterations, nr]);
+    let mut psi_storage = Array2::zeros([data.iterations, nr]);
+    let mut pi_storage = Array2::zeros([data.iterations, nr]);
+    let mut metric_storage = Array2::zeros([data.iterations, nr]);
+    let mut lapse_storage = Array2::zeros([data.iterations, nr]);
 
     // Loop
 
     for i in 0..iterations {
         println!("Iteration {}", i);
-
-        // ****************
-        // Storage ********
-        // ****************
-
-        for rindex in 0..nr {
-            wave[(i, rindex)] = metric[rindex];
-        }
 
         // *******************
         // Setup *************
@@ -184,42 +184,93 @@ pub fn simulate(data: InitialData, mut update_callback: impl FnMut(f64)) -> Simu
         let mut term = Function1::zeros(nr);
 
         Zip::from(&mut term)
-            .and(&mesh.r)
             .and(&lapse)
             .and(&metric)
             .and(&psi)
-            .for_each(|t, &r, &lapse, &metric, &psi| {
-                *t = r * r * lapse * psi / metric;
+            .for_each(|t, &lapse, &metric, &psi| {
+                *t = lapse * psi / metric;
             });
 
         let gterm = mesh.gradient(&term);
 
-        for i in 1..nr {
-            dpi[i] = 1.0 / (mesh.r[i] * mesh.r[i]) * gterm[i] - lapse[i] * metric[i] * phi[i];
+        for i in 0..nr {
+            if i == 0 {
+                dpi[i] = 3.0 * gterm[i] - lapse[i] * metric[i] * phi[i];
+
+                // const TWO_TO_ONE_THIRD: f64 = 1.25992104989;
+
+                // let du = dr * dr * dr;
+
+                // let f0 = 0.0;
+                // let f1 = mesh.r[1] * mesh.r[1] * lapse[1] / metric[1] * psi[1];
+                // let f2 = crate::math::interp(
+                //     mesh.r[1] * mesh.r[1] * lapse[1] / metric[1] * psi[1],
+                //     mesh.r[2] * mesh.r[2] * lapse[2] / metric[2] * psi[2],
+                //     TWO_TO_ONE_THIRD - 1.0,
+                // );
+
+                // dpi[i] =
+                //     3.0 * (f2 - 4.0 * f1 + 3.0 * f0) / (2.0 * du) - lapse[i] * metric[i] * phi[i];
+            } else {
+                dpi[i] = gterm[i] + 2.0 / mesh.r[i] * term[i] - lapse[i] * metric[i] * phi[i];
+            }
         }
 
-        const TWO_TO_ONE_THIRD: f64 = 1.25992104989;
-        const TWO_TO_TWO_THIRDS: f64 = 1.58740105197;
+        // let mut term = Function1::zeros(nr);
 
-        let du = dr * dr * dr;
+        // Zip::from(&mut term)
+        //     .and(&mesh.r)
+        //     .and(&lapse)
+        //     .and(&metric)
+        //     .and(&psi)
+        //     .for_each(|t, &r, &lapse, &metric, &psi| {
+        //         *t = r * r * lapse * psi / metric;
+        //     });
 
-        let f0 = 0.0;
-        let f1 = dr * dr * lapse[1] / metric[1] * psi[1];
-        let f2 = TWO_TO_TWO_THIRDS
-            * dr
-            * dr
-            * crate::math::interp(
-                lapse[1] / metric[1] * psi[1],
-                lapse[2] / metric[2] * psi[2],
-                TWO_TO_ONE_THIRD - 1.0,
-            );
+        // let gterm = mesh.gradient(&term);
 
-        let dr3 = (f2 - 4.0 * f1 + 3.0 * f0) / (2.0 * du);
+        // for i in 1..nr {
+        //     dpi[i] = 1.0 / (mesh.r[i] * mesh.r[i]) * gterm[i] - lapse[i] * metric[i] * phi[i];
+        // }
 
-        dpi[0] = 3.0 * dr3 - lapse[0] * metric[0] * phi[0];
+        // const TWO_TO_ONE_THIRD: f64 = 1.25992104989;
+        // const TWO_TO_TWO_THIRDS: f64 = 1.58740105197;
+
+        // let du = dr * dr * dr;
+
+        // let f0 = 0.0;
+        // let f1 = dr * dr * lapse[1] / metric[1] * psi[1];
+        // let f2 = TWO_TO_TWO_THIRDS
+        //     * dr
+        //     * dr
+        //     * crate::math::interp(
+        //         lapse[1] / metric[1] * psi[1],
+        //         lapse[2] / metric[2] * psi[2],
+        //         TWO_TO_ONE_THIRD - 1.0,
+        //     );
+
+        // let dr3 = (f2 - 4.0 * f1 + 3.0 * f0) / (2.0 * du);
+
+        // dpi[0] = 3.0 * dr3 - lapse[0] * metric[0] * phi[0];
 
         // dphi.fill(0.0);
         // dpsi.fill(0.0);
+
+        // ****************
+        // Storage ********
+        // ****************
+
+        for rindex in 0..nr {
+            phi_storage[(i, rindex)] = phi[rindex];
+            psi_storage[(i, rindex)] = psi[rindex];
+            pi_storage[(i, rindex)] = pi[rindex];
+            metric_storage[(i, rindex)] = metric[rindex];
+            lapse_storage[(i, rindex)] = lapse[rindex];
+        }
+
+        // ***************
+        // Evolve ********
+        // ***************
 
         if i == 0 {
             // First iteration update with euler's method
@@ -246,12 +297,20 @@ pub fn simulate(data: InitialData, mut update_callback: impl FnMut(f64)) -> Simu
         update_callback(i as f64 * dt);
     }
 
-    for rindex in 0..nr {
-        wave[(iterations, rindex)] = metric[rindex];
-    }
+    // for rindex in 0..nr {
+    //     phi_storage[(iterations, rindex)] = phi[rindex];
+    //     psi_storage[(iterations, rindex)] = psi[rindex];
+    //     pi_storage[(iterations, rindex)] = pi[rindex];
+    //     metric_storage[(iterations, rindex)] = metric[rindex];
+    //     lapse_storage[(iterations, rindex)] = lapse[rindex];
+    // }
 
     Simulation {
-        phi: wave,
+        phi: phi_storage,
+        psi: psi_storage,
+        pi: pi_storage,
+        metric: metric_storage,
+        lapse: lapse_storage,
         rmax,
         tend,
     }
@@ -290,17 +349,12 @@ impl Mesh {
             .for_each(|dst, &f1, &f0| {
                 *dst = (f1 - f0) / (2.0 * self.dr);
             });
-        gradient[0] = (f[2] - 4.0 * f[1] + 3.0 * f[0]) / (2.0 * self.dr);
+        gradient[0] = (-f[2] + 4.0 * f[1] - 3.0 * f[0]) / (2.0 * self.dr);
         gradient[len - 1] = (f[len - 3] - 4.0 * f[len - 2] + 3.0 * f[len - 1]) / (2.0 * self.dr);
 
+        // gradient[0] = (f[1] - f[0]) / self.dr;
+        // gradient[len - 1] = (f[len - 2] - f[len - 1]) / self.dr;
+
         gradient
-    }
-
-    fn gradient3(&self, f: &Function1) -> Function1 {
-        let mut gradient3 = Function1::zeros(self.nr);
-
-        let du = self.dr.powi(3);
-
-        gradient3
     }
 }
