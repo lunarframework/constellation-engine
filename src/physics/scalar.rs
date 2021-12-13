@@ -29,11 +29,9 @@ pub fn simulate(data: InitialData, mut update_callback: impl FnMut(f64)) -> Simu
     let rmax = data.rmax;
     let nr = data.wave.len();
 
-    let dr = rmax / (nr - 1) as f64;
-
     let tend = data.tend;
     let iterations = data.iterations;
-    let dt = tend / (iterations) as f64;
+    let dt = tend / iterations as f64;
 
     // Mesh
     let mesh = Mesh::new(rmax, nr);
@@ -170,17 +168,12 @@ pub fn simulate(data: InitialData, mut update_callback: impl FnMut(f64)) -> Simu
                 *dphi = lapse / metric * pi;
             });
 
-        // dr (phi) = lapse * pi at r  = 0
-        dphi[0] = lapse[0] * pi[0];
-
         // *****************
         // Update dpsi *****
         // *****************
 
         // dpsi/dt = d/dr (lapse / metric * pi)
         mesh.gradient(&dphi, &mut dpsi);
-
-        dpsi[0] = 0.0;
 
         // *****************
         // Update dpi ******
@@ -201,53 +194,44 @@ pub fn simulate(data: InitialData, mut update_callback: impl FnMut(f64)) -> Simu
 
         for i in 1..nr {
             dpi[i] = gterm[i] + 2.0 / mesh.r[i] * term[i] - lapse[i] * metric[i] * phi[i];
+            // dpi_diff[i] = 1.0 / (mesh.r[i] * mesh.r[i]) * gterm[i] - lapse[i] * metric[i] * phi[i];
+        }
+
+        let mut dpi_diff = Function1::zeros(nr);
+
+        let mut term_diff = Function1::zeros(nr);
+        let mut gterm3_diff = Function1::zeros(nr);
+        // let mut gterm_diff = Function1::zeros(nr);
+
+        Zip::from(&mut term_diff)
+            .and(&lapse)
+            .and(&metric)
+            .and(&psi)
+            .and(&mesh.r)
+            .for_each(|t, &lapse, &metric, &psi, &r| {
+                *t = r * r * lapse * psi / metric;
+            });
+
+        mesh.gradient3(&term_diff, &mut gterm3_diff);
+        // mesh.gradient(&term_diff, &mut gterm_diff);
+
+        for i in 0..nr {
+            dpi_diff[i] = 3.0 * gterm3_diff[i] - lapse[i] * metric[i] * phi[i];
+            // dpi_diff[i] =
+            //     1.0 / (mesh.r[i] * mesh.r[i]) * gterm_diff[i] - lapse[i] * metric[i] * phi[i];
         }
 
         // let d2_dr2_phi = (2.0 * phi[1] - 2.0 * phi[0]) / (mesh.dr * mesh.dr);
 
-        let d2_dr2_phi = psi[1] / mesh.dr;
+        // ****************
+        // Rhs Boundry ****
+        // ****************
 
-        dpi[0] = 3.0 * lapse[0] * d2_dr2_phi - lapse[0] * phi[0];
+        dpsi[0] = 0.0;
 
-        // let mut term = Function1::zeros(nr);
+        let d2phi_dr2 = psi[1] / mesh.dr;
 
-        // Zip::from(&mut term)
-        //     .and(&mesh.r)
-        //     .and(&lapse)
-        //     .and(&metric)
-        //     .and(&psi)
-        //     .for_each(|t, &r, &lapse, &metric, &psi| {
-        //         *t = r * r * lapse * psi / metric;
-        //     });
-
-        // let gterm = mesh.gradient(&term);
-
-        // for i in 1..nr {
-        //     dpi[i] = 1.0 / (mesh.r[i] * mesh.r[i]) * gterm[i] - lapse[i] * metric[i] * phi[i];
-        // }
-
-        // const TWO_TO_ONE_THIRD: f64 = 1.25992104989;
-        // const TWO_TO_TWO_THIRDS: f64 = 1.58740105197;
-
-        // let du = dr * dr * dr;
-
-        // let f0 = 0.0;
-        // let f1 = dr * dr * lapse[1] / metric[1] * psi[1];
-        // let f2 = TWO_TO_TWO_THIRDS
-        //     * dr
-        //     * dr
-        //     * crate::math::interp(
-        //         lapse[1] / metric[1] * psi[1],
-        //         lapse[2] / metric[2] * psi[2],
-        //         TWO_TO_ONE_THIRD - 1.0,
-        //     );
-
-        // let dr3 = (f2 - 4.0 * f1 + 3.0 * f0) / (2.0 * du);
-
-        // dpi[0] = 3.0 * dr3 - lapse[0] * metric[0] * phi[0];
-
-        // dphi.fill(0.0);
-        // dpsi.fill(0.0);
+        dpi[0] = 3.0 * lapse[0] * d2phi_dr2 - lapse[0] * phi[0];
 
         // ****************
         // Storage ********
@@ -286,6 +270,12 @@ pub fn simulate(data: InitialData, mut update_callback: impl FnMut(f64)) -> Simu
         dphi_prev.assign(&dphi);
         dpsi_prev.assign(&dpsi);
         dpi_prev.assign(&dpi);
+
+        // ****************
+        // Rhs Boundry ****
+        // ****************
+
+        // psi[mesh.nr - 1] = -pi[mesh.nr - 1] - phi[mesh.nr - 1] / mesh.r[mesh.nr - 1];
 
         update_callback(i as f64 * dt);
     }
@@ -333,8 +323,6 @@ impl Mesh {
         assert_eq!(f.len(), self.nr);
         assert_eq!(f.len(), dst.len());
 
-        dst.fill(0.0);
-
         let len = f.len();
 
         Zip::from(dst.slice_mut(s![1..(len - 1)]))
@@ -346,6 +334,44 @@ impl Mesh {
 
         dst[0] = (-f[2] + 4.0 * f[1] - 3.0 * f[0]) / (2.0 * self.dr);
         dst[len - 1] = (f[len - 3] - 4.0 * f[len - 2] + 3.0 * f[len - 1]) / (2.0 * self.dr);
+    }
+
+    fn gradient3(&self, f: &Function1, dst: &mut Function1) {
+        assert_eq!(f.len(), self.nr);
+        assert_eq!(f.len(), dst.len());
+
+        let len = f.len();
+
+        let du = self.dr * self.dr * self.dr;
+
+        for i in 1..(len - 1) {
+            let m = i as f64;
+
+            let lhs = crate::math::interp(
+                f[i - 1],
+                f[i],
+                crate::math::interp_fraction(m - 1.0, m, (m * m * m - 1.0).powf(1.0 / 3.0)),
+            );
+            let rhs = crate::math::interp(
+                f[i],
+                f[i + 1],
+                crate::math::interp_fraction(m, m + 1.0, (m * m * m + 1.0).powf(1.0 / 3.0)),
+            );
+
+            dst[i] = (rhs - lhs) / (2.0 * du);
+        }
+
+        {
+            let f0 = f[0];
+            let f1 = f[1];
+            let f2 = crate::math::interp(
+                f[1],
+                f[2],
+                crate::math::interp_fraction(1.0, 2.0, (2.0 * du).powf(1.0 / 3.0)),
+            );
+
+            dst[0] = (-f2 + 4.0 * f1 - 3.0 * f0) / (2.0 * du);
+        }
     }
 
     // fn gradient(&self, f: &Function1) -> Function1 {

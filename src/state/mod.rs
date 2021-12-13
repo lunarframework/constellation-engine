@@ -23,8 +23,8 @@ impl State {
                             points: 10,
                             dist: Distribution::Flat { y: 0.0 },
                             mass: 0.0,
-                            show_psi: false,
-                            show_pi: false,
+                            _show_psi: false,
+                            _show_pi: false,
                             tend: 1.0,
                             iterations: 5,
                             simulator: None,
@@ -47,10 +47,11 @@ impl State {
                 ui.strong("WELCOME TO CONSTELLATION ENGINE");
                 ui.separator();
                 ui.horizontal_wrapped(|ui| {
-                    ui.label("Constellation Engine is a tool for creating, editing, and visualizing physics simulations. It is developed by Lukas Mesicek, a physics undergrad at the University of Utah."); 
+                    ui.label("Constellation Engine is a tool for creating, editing, and visualizing physics simulations"); 
+                    // ui.label("Constellation Engine is a tool for creating, editing, and visualizing physics simulations. It is developed by Lukas Mesicek, a physics undergrad at the University of Utah."); 
                 });
             },
-            Page::InitialData { ref mut dist, ref mut rmax, ref mut points, ref mut mass, ref mut tend, ref mut iterations, ref mut show_psi, ref mut show_pi, ref mut simulator,.. } => {
+            Page::InitialData { ref mut dist, ref mut rmax, ref mut points, ref mut mass, ref mut tend, ref mut iterations, ref mut simulator,.. } => {
                 let available_size = ui.available_size();
 
                 // Begin Enabled Ui
@@ -174,6 +175,12 @@ impl State {
                                     });
                                 ui.separator();
 
+                                let dr = *rmax / (*points - 1) as f64;
+                                let dt = *tend / (*iterations) as f64;
+                                ui.label(format!("Courant Factor: {:.2} (s / m)", dt / dr));
+
+                                ui.separator();
+
                                 if ui.button("Simulate").clicked() {
                                     *simulator = Some(SimulatorHandle::new(
                                         *rmax,
@@ -192,9 +199,9 @@ impl State {
 
                             use egui::plot::{Line, Values, Legend, Plot};
 
-                            let pi = Line::new(Values::from_explicit_callback(|_r| 0.0, 0.0..*rmax, 2));
+                            // let pi = Line::new(Values::from_explicit_callback(|_r| 0.0, 0.0..*rmax, 2));
                             let phi: Line;
-                            let psi: Line;
+                            // let psi: Line;
 
                             match *dist {
                                 Distribution::Flat { y } => {
@@ -204,11 +211,11 @@ impl State {
                                         2,
                                     ));
 
-                                    psi = Line::new(Values::from_explicit_callback(
-                                        |_r| 0.0,
-                                        0.0..*rmax,
-                                        2,
-                                    ));
+                                    // psi = Line::new(Values::from_explicit_callback(
+                                    //     |_r| 0.0,
+                                    //     0.0..*rmax,
+                                    //     2,
+                                    // ));
                                 }
                                 Distribution::Gaussian { amplitude, sigma } => {
                                     phi = Line::new(Values::from_explicit_callback(
@@ -217,31 +224,31 @@ impl State {
                                         *points,
                                     ));
 
-                                    psi = Line::new(Values::from_explicit_callback(
-                                        move |r| {
-                                            -2.0 * r / (sigma * sigma)
-                                                * amplitude
-                                                * (-(r * r) / (sigma * sigma)).exp()
-                                        },
-                                        0.0..=*rmax,
-                                        *points,
-                                    ));
+                                    // psi = Line::new(Values::from_explicit_callback(
+                                    //     move |r| {
+                                    //         -2.0 * r / (sigma * sigma)
+                                    //             * amplitude
+                                    //             * (-(r * r) / (sigma * sigma)).exp()
+                                    //     },
+                                    //     0.0..=*rmax,
+                                    //     *points,
+                                    // ));
                                 }
                             }
 
-                            let mut plot = Plot::new("Initial Data Plot")
+                            let plot = Plot::new("Initial Data Plot")
                                 .line(phi.name("Phi (Scalar Field)"))
                                 .data_aspect(1.0)
                                 .view_aspect(1.0)
                                 .legend(Legend::default());
 
-                            if *show_psi {
-                                plot = plot.line(psi.name("Psi"));
-                            }
+                            // if *show_psi {
+                            //     plot = plot.line(psi.name("Psi"));
+                            // }
 
-                            if *show_pi {
-                                plot = plot.line(pi.name("Pi"));
-                            }
+                            // if *show_pi {
+                            //     plot = plot.line(pi.name("Pi"));
+                            // }
 
                             ui.add(plot);
                         }); // End plot group
@@ -254,10 +261,8 @@ impl State {
 
                     use egui::plot::{Line, Values, Legend, Plot, Value};
 
-                    let phi = &sim.phi;
-
-                    let time_len = phi.dim().0;
-                    let spatial_len = phi.dim().1;
+                    let time_len = sim.phi.dim().0;
+                    let spatial_len = sim.phi.dim().1;
                     // let fraction = *time / sim.tend;
                     // let i = fraction * (time_len - 1) as f64;
 
@@ -317,7 +322,10 @@ impl State {
 
                     ui.add(plot);
 
-                    ui.add(egui::Slider::new(time_index, 0..=(time_len - 1)).text("Time (s)"));
+                    ui.horizontal(|ui| {
+                        ui.add(egui::Slider::new(time_index, 0..=(time_len - 1)).text("Iteration"));
+                        ui.label(format!("Delta Time: {:.2} s", sim.tend / (time_len - 1) as f64));
+                    });
                     
                 }); // End plot group
             }
@@ -374,8 +382,8 @@ enum Page {
         dist: Distribution,
         mass: f64,
         // View
-        show_psi: bool,
-        show_pi: bool,
+        _show_psi: bool,
+        _show_pi: bool,
 
         // Simulation
         tend: f64,
