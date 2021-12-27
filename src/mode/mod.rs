@@ -1,3 +1,5 @@
+pub mod open;
+
 use crate::{launch, ConsoleApp};
 use clap::ArgMatches;
 
@@ -21,3 +23,5 @@ impl ConsoleApp for WelcomeApp {
 pub fn welcome(_matches: &ArgMatches) {
     launch(WelcomeApp);
 }
+
+pub use open::open;

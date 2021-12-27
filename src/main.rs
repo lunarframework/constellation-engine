@@ -1,5 +1,6 @@
 pub mod app;
 pub mod mode;
+pub mod universe;
 
 use app::{launch, ConsoleApp};
 
@@ -14,7 +15,13 @@ fn main() {
         .subcommand(clap::SubCommand::with_name("new")
             .about("Creates new simulation file which can then be editted manually or via the edit command")
             .author("Lukas M.")
-            .arg(clap::Arg::with_name("NAME")
+            .arg(clap::Arg::with_name("path")
+                .required(true)
+                .index(1)))
+        .subcommand(clap::SubCommand::with_name("open")
+            .about("Opens a simulation folder for edisting")
+            .author("Lukas M.")
+            .arg(clap::Arg::with_name("path")
                 .required(true)
                 .index(1)))
         .subcommand(clap::SubCommand::with_name("welcome")
@@ -25,6 +32,7 @@ fn main() {
     match matches.subcommand() {
         ("new", Some(sub_matches)) => mode::new(sub_matches),
         ("welcome", Some(sub_matches)) => mode::welcome(sub_matches),
+        ("open", Some(sub_matches)) => mode::open(sub_matches),
         _ => {}
     }
 }

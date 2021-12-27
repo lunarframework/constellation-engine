@@ -17,6 +17,7 @@ bytemuck = "1.7.2"
 ndarray = "0.15.3"
 egui = "0.15.0"
 clap = "2.34.0"
+nalgebra = "0.29.0"
 
 starlight = { path = "crates/starlight", version = "0.1.0" }
 
