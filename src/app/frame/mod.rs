@@ -141,11 +141,9 @@ impl Framework {
                 present_mode: PresentMode::Fifo,
             },
         );
-
         let module = renderer
             .device()
             .create_shader_module(&wgpu::include_wgsl!("composite.wgsl"));
-
         let uniform_buffer =
             renderer
                 .device()
@@ -231,17 +229,17 @@ impl Framework {
                 });
 
         let render_pipeline = renderer.device().create_render_pipeline(&wgpu::RenderPipelineDescriptor {
-            label: Some("composite_pipeline"),
-            layout: Some(&pipeline_layout),
-            vertex: wgpu::VertexState {
-                entry_point: "vs_srgb_main",
-                module: &module,
-                buffers: &[wgpu::VertexBufferLayout {
-                    array_stride: 5 * 4,
-                    step_mode: wgpu::VertexStepMode::Vertex,
-                    // 0: vec2 position
-                    // 1: vec2 texture coordinates
-                    // 2: uint color
+                    label: Some("composite_pipeline"),
+                    layout: Some(&pipeline_layout),
+                    vertex: wgpu::VertexState {
+                        entry_point: "vs_linear_main",
+                        module: &module,
+                        buffers: &[wgpu::VertexBufferLayout {
+                            array_stride: 5 * 4,
+                            step_mode: wgpu::VertexStepMode::Vertex,
+                            // 0: vec2 position
+                            // 1: vec2 texture coordinates
+                            // 2: uint color
                     attributes: &wgpu::vertex_attr_array![0 => Float32x2, 1 => Float32x2, 2 => Uint32],
                 }],
             },
@@ -260,7 +258,6 @@ impl Framework {
                 count: 1,
                 mask: !0,
             },
-
             fragment: Some(wgpu::FragmentState {
                 module: &module,
                 entry_point: "fs_main",
@@ -282,7 +279,6 @@ impl Framework {
                 }],
             }),
         });
-
         Self {
             window,
             renderer,
@@ -302,7 +298,6 @@ impl Framework {
             pointer_touch_id: None,
             simulate_touch_screen: false,
             clipboard: Default::default(),
-
             render_pipeline,
             vertex_buffers: Vec::with_capacity(64),
             index_buffers: Vec::with_capacity(64),
@@ -315,37 +310,34 @@ impl Framework {
             user_textures: HashMap::new(),
         }
     }
-
     /// The number of physical pixels per logical point,
     /// as configured on the current egui context (see [`egui::Context::pixels_per_point`]).
     #[inline]
     pub fn pixels_per_point(&self) -> f32 {
         self.current_pixels_per_point
     }
-
     /// The current input state.
     /// This is changed by [`Self::on_event`] and cleared by [`Self::take_egui_input`].
     #[inline]
     pub fn raw_input(&self) -> &egui::RawInput {
         &self.raw_input
     }
-
     /// Returns the imgui context
     pub fn context(&self) -> egui::CtxRef {
         self.context.clone()
     }
-
     pub fn on_window_event(&mut self, id: WindowId, event: &winit::event::WindowEvent) {
         if self.window.id() == id {
             use winit::event::WindowEvent;
             match event {
                 WindowEvent::Resized(size) => {
+                    // TODO, why does winit seem to throw an invalid resize event
                     if size.width > 0 && size.height > 0 {
+                        let size = self.window.inner_size();
                         // let format = self
                         //     .surface
                         //     .get_preferred_format(self.renderer.adapter())
                         //     .unwrap();
-
                         self.surface.configure(
                             self.renderer.device(),
                             &SurfaceConfiguration {
@@ -356,7 +348,6 @@ impl Framework {
                                 present_mode: PresentMode::Fifo,
                             },
                         );
-
                         // self.format = format;
                     }
                 }
@@ -751,7 +742,6 @@ impl Framework {
             depth_stencil_attachment: None,
         });
 
-        render_pass.push_debug_group("composite_pass");
         render_pass.set_pipeline(&self.render_pipeline);
 
         render_pass.set_bind_group(0, &self.uniform_bind_group, &[]);
@@ -807,14 +797,26 @@ impl Framework {
             render_pass.draw_indexed(0..mesh.indices.len() as u32, 0, 0..1);
         }
 
-        render_pass.pop_debug_group();
-
         drop(render_pass);
 
         // submit will accept anything that implements IntoIter
         self.renderer
             .queue()
             .submit(std::iter::once(encoder.finish()));
+
+        {
+            let dummy_encoder =
+                self.renderer
+                    .device()
+                    .create_command_encoder(&wgpu::CommandEncoderDescriptor {
+                        label: Some("Dummy Command Encoder"),
+                    });
+
+            self.renderer
+                .queue()
+                .submit(std::iter::once(dummy_encoder.finish()));
+        }
+
         output_frame.present();
 
         Ok(())
@@ -843,7 +845,7 @@ impl Framework {
     ///
     /// This enables the application to reference the texture inside an image ui element.
     /// This effectively enables off-screen rendering inside the egui UI. Texture must have
-    /// the texture format `TextureFormat::Rgba8UnormSrgb` and
+    /// the texture format `TextureFormat::Rgba8Unorm` and
     /// Texture usage `TextureUsage::SAMPLED`.
     pub fn register_texture(
         &mut self,
@@ -956,7 +958,7 @@ impl Framework {
                 mip_level_count: 1,
                 sample_count: 1,
                 dimension: wgpu::TextureDimension::D2,
-                format: wgpu::TextureFormat::Rgba8UnormSrgb,
+                format: wgpu::TextureFormat::Rgba8Unorm,
                 usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST,
             });
 

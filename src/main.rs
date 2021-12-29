@@ -2,7 +2,7 @@ pub mod app;
 pub mod mode;
 pub mod universe;
 
-use app::{launch, ConsoleApp};
+use app::{App, AppContex, AppEvent, AppState, Framework, Renderer};
 
 fn main() {
     env_logger::init();
@@ -24,6 +24,9 @@ fn main() {
             .arg(clap::Arg::with_name("path")
                 .required(true)
                 .index(1)))
+        .subcommand(clap::SubCommand::with_name("test")
+            .about("Test")
+            .author("Lukas M."))
         .subcommand(clap::SubCommand::with_name("welcome")
             .about("Opens simple document detailing some of Constellation Engine's capabilities")
             .author("Lukas M."))
@@ -33,6 +36,7 @@ fn main() {
         ("new", Some(sub_matches)) => mode::new(sub_matches),
         ("welcome", Some(sub_matches)) => mode::welcome(sub_matches),
         ("open", Some(sub_matches)) => mode::open(sub_matches),
+        ("test", Some(sub_matches)) => mode::test(sub_matches),
         _ => {}
     }
 }
