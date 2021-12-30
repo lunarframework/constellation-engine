@@ -1,9 +1,8 @@
 pub mod frame;
-pub mod render;
 
 pub use frame::Framework;
-pub use render::Renderer;
 
+use crate::RenderHandle;
 use winit::event::Event;
 use winit::event::WindowEvent;
 use winit::event_loop::{ControlFlow, EventLoop};
@@ -16,14 +15,11 @@ use egui::CtxRef;
 
 use std::sync::Arc;
 
-pub enum AppEvent<'a> {
+pub enum AppEvent {
     CloseRequested,
 
     // TODO this is temporary. Eventually Framework (or at least rendering related functions) will be moved into AppContext
-    Frame {
-        ctx: CtxRef,
-        frame: &'a mut Framework,
-    },
+    Frame { ctx: CtxRef },
 }
 
 pub enum AppState {
@@ -34,7 +30,7 @@ pub enum AppState {
 #[derive(Clone)]
 pub struct AppContex {
     window: Arc<Window>,
-    renderer: Arc<Renderer>,
+    renderer: RenderHandle,
 }
 
 impl AppContex {
@@ -42,15 +38,15 @@ impl AppContex {
         self.window.borrow()
     }
 
-    pub fn renderer(&self) -> &Renderer {
-        self.renderer.borrow()
+    pub fn renderer(&self) -> RenderHandle {
+        self.renderer.clone()
     }
 }
 
 pub struct App {
     event_loop: EventLoop<()>,
     window: Arc<Window>,
-    renderer: Arc<Renderer>,
+    renderer: RenderHandle,
 }
 
 impl App {
@@ -63,7 +59,7 @@ impl App {
                 .unwrap(),
         );
 
-        let renderer = Arc::new(Renderer::new());
+        let renderer = RenderHandle::new();
 
         App {
             event_loop,
@@ -79,7 +75,7 @@ impl App {
         }
     }
 
-    pub fn run(self, app_loop: impl FnMut(AppEvent<'_>) -> AppState + 'static) -> ! {
+    pub fn run(self, app_loop: impl FnMut(AppEvent) -> AppState + 'static) -> ! {
         use std::mem::ManuallyDrop;
 
         let App {
@@ -136,7 +132,6 @@ impl App {
                         frame.begin_frame();
                         let state = (app_loop)(AppEvent::Frame {
                             ctx: frame.context(),
-                            frame: &mut frame,
                         });
 
                         match state {
@@ -164,13 +159,4 @@ impl App {
             }
         });
     }
-}
-
-fn destruct_app(app: App) -> (EventLoop<()>, Arc<Window>, Arc<Renderer>) {
-    let App {
-        event_loop,
-        window,
-        renderer,
-    } = app;
-    (event_loop, window, renderer)
 }

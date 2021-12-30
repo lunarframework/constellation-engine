@@ -48,6 +48,14 @@ pub use world::{
     SpawnColumnBatchIter, World,
 };
 
+/// Prelude for the starlight modules
+pub mod prelude {
+    pub use crate::{
+        Entity, EntityBuilder, EntityRef, Query, QueryBorrow, QueryItem, QueryIter, QueryMut, With,
+        Without, World,
+    };
+}
+
 // // Unstable implementation details needed by the macros
 // #[doc(hidden)]
 // pub use archetype::TypeInfo;

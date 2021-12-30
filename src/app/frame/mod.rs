@@ -1,5 +1,7 @@
 pub mod clipboard;
 
+use crate::{ImageId, RenderHandle};
+
 use winit::event::{DeviceEvent, DeviceId};
 use winit::window::{Window, WindowId};
 
@@ -13,8 +15,6 @@ use std::borrow::Borrow;
 use std::collections::HashMap;
 use std::num::NonZeroU32;
 use std::sync::Arc;
-
-use super::Renderer;
 
 /// Builder of ui and manages the various user interations with that ui.
 /// This is a thin wrapper atop `imgui`, an immediete mode gui lib.
@@ -38,7 +38,7 @@ pub struct Framework {
     clipboard: clipboard::Clipboard,
 
     // Composite rendering
-    renderer: Arc<Renderer>,
+    renderer: RenderHandle,
     surface: Surface,
     surface_format: TextureFormat,
     render_pipeline: wgpu::RenderPipeline,
@@ -46,17 +46,13 @@ pub struct Framework {
     vertex_buffers: Vec<SizedBuffer>,
     uniform_buffer: SizedBuffer,
     uniform_bind_group: wgpu::BindGroup,
-    texture_bind_group_layout: wgpu::BindGroupLayout,
-    texture_bind_group: Option<wgpu::BindGroup>,
-    texture_version: Option<u64>,
-
-    next_user_texture_id: u64,
-    user_textures: HashMap<u64, wgpu::BindGroup>,
+    font_texture_bind_group: Option<wgpu::BindGroup>,
+    font_texture_version: Option<u64>,
 }
 
 impl Framework {
     /// Creates the gui handler and attaches it to the given window
-    pub fn new(window: Arc<Window>, renderer: Arc<Renderer>, format: TextureFormat) -> Self {
+    pub fn new(window: Arc<Window>, renderer: RenderHandle, format: TextureFormat) -> Self {
         let pixels_per_point = window.scale_factor() as f32;
         let context = egui::CtxRef::default();
         context.set_fonts(egui::FontDefinitions::default());
@@ -191,40 +187,15 @@ impl Framework {
                 }],
             });
 
-        let texture_bind_group_layout =
-            renderer
-                .device()
-                .create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-                    label: Some("composite_texture_bind_group_layout"),
-                    entries: &[
-                        wgpu::BindGroupLayoutEntry {
-                            binding: 0,
-                            visibility: wgpu::ShaderStages::FRAGMENT,
-                            ty: wgpu::BindingType::Texture {
-                                multisampled: false,
-                                sample_type: wgpu::TextureSampleType::Float { filterable: true },
-                                view_dimension: wgpu::TextureViewDimension::D2,
-                            },
-                            count: None,
-                        },
-                        wgpu::BindGroupLayoutEntry {
-                            binding: 1,
-                            visibility: wgpu::ShaderStages::FRAGMENT,
-                            ty: wgpu::BindingType::Sampler {
-                                filtering: true,
-                                comparison: false,
-                            },
-                            count: None,
-                        },
-                    ],
-                });
-
         let pipeline_layout =
             renderer
                 .device()
                 .create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
                     label: Some("composite_pipeline_layout"),
-                    bind_group_layouts: &[&uniform_bind_group_layout, &texture_bind_group_layout],
+                    bind_group_layouts: &[
+                        &uniform_bind_group_layout,
+                        &renderer.image_bind_group_layout(),
+                    ],
                     push_constant_ranges: &[],
                 });
 
@@ -303,11 +274,8 @@ impl Framework {
             index_buffers: Vec::with_capacity(64),
             uniform_buffer,
             uniform_bind_group,
-            texture_bind_group_layout,
-            texture_version: None,
-            texture_bind_group: None,
-            next_user_texture_id: 0,
-            user_textures: HashMap::new(),
+            font_texture_version: None,
+            font_texture_bind_group: None,
         }
     }
     /// The number of physical pixels per logical point,
@@ -724,6 +692,8 @@ impl Framework {
                     label: Some("Composite Command Encoder"),
                 });
 
+        let images = self.renderer.get_image_bind_groups().lock().unwrap();
+
         let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
             label: Some("Paint Pass"),
             color_attachments: &[wgpu::RenderPassColorAttachment {
@@ -789,8 +759,19 @@ impl Framework {
 
                 render_pass.set_scissor_rect(x, y, width, height);
             }
-            let bind_group = self.get_texture_bind_group(mesh.texture_id)?;
-            render_pass.set_bind_group(1, bind_group, &[]);
+
+            match mesh.texture_id {
+                egui::TextureId::Egui => {
+                    render_pass.set_bind_group(
+                        1,
+                        (&self.font_texture_bind_group).as_ref().unwrap(),
+                        &[],
+                    );
+                }
+                egui::TextureId::User(id) => {
+                    render_pass.set_bind_group(1, images.get(&id).unwrap(), &[]);
+                }
+            };
 
             render_pass.set_index_buffer(index_buffer.buffer.slice(..), wgpu::IndexFormat::Uint32);
             render_pass.set_vertex_buffer(0, vertex_buffer.buffer.slice(..));
@@ -798,24 +779,12 @@ impl Framework {
         }
 
         drop(render_pass);
+        drop(images);
 
         // submit will accept anything that implements IntoIter
         self.renderer
             .queue()
             .submit(std::iter::once(encoder.finish()));
-
-        {
-            let dummy_encoder =
-                self.renderer
-                    .device()
-                    .create_command_encoder(&wgpu::CommandEncoderDescriptor {
-                        label: Some("Dummy Command Encoder"),
-                    });
-
-            self.renderer
-                .queue()
-                .submit(std::iter::once(dummy_encoder.finish()));
-        }
 
         output_frame.present();
 
@@ -841,83 +810,28 @@ impl Framework {
         }
     }
 
-    /// Registers a `wgpu::Texture` with a `egui::TextureId`.
-    ///
-    /// This enables the application to reference the texture inside an image ui element.
-    /// This effectively enables off-screen rendering inside the egui UI. Texture must have
-    /// the texture format `TextureFormat::Rgba8Unorm` and
-    /// Texture usage `TextureUsage::SAMPLED`.
-    pub fn register_texture(
-        &mut self,
-        texture: &wgpu::Texture,
-        filter: wgpu::FilterMode,
-    ) -> egui::TextureId {
-        let sampler = self
-            .renderer
-            .device()
-            .create_sampler(&wgpu::SamplerDescriptor {
-                label: Some(format!("{}_texture_sampler", self.next_user_texture_id).as_str()),
-                mag_filter: filter,
-                min_filter: filter,
-                ..Default::default()
-            });
+    // fn get_texture_bind_group(
+    //     &self,
+    //     texture_id: egui::TextureId,
+    // ) -> Result<&wgpu::BindGroup, FrameError> {
+    //     let bind_group = match texture_id {
+    //         egui::TextureId::Egui => self.texture_bind_group.as_ref().ok_or_else(|| {
+    //             FrameError::Internal("egui texture was not set before the first draw".to_string())
+    //         })?,
+    //         egui::TextureId::User(id) => {
+    //             &(self.user_textures.get(&id).ok_or_else(|| {
+    //                 FrameError::Internal(format!("user texture {} not found", id))
+    //             })?)
+    //         }
+    //     };
 
-        // We've bound it here, so that we don't add it as a pending texture.
-        let bind_group = self
-            .renderer
-            .device()
-            .create_bind_group(&wgpu::BindGroupDescriptor {
-                label: Some(format!("{}_texture_bind_group", self.next_user_texture_id).as_str()),
-                layout: &self.texture_bind_group_layout,
-                entries: &[
-                    wgpu::BindGroupEntry {
-                        binding: 0,
-                        resource: wgpu::BindingResource::TextureView(
-                            &texture.create_view(&wgpu::TextureViewDescriptor::default()),
-                        ),
-                    },
-                    wgpu::BindGroupEntry {
-                        binding: 1,
-                        resource: wgpu::BindingResource::Sampler(&sampler),
-                    },
-                ],
-            });
-        let texture_id = egui::TextureId::User(self.next_user_texture_id);
-        self.user_textures
-            .insert(self.next_user_texture_id, bind_group);
-        self.next_user_texture_id += 1;
-
-        texture_id
-    }
-
-    pub fn unregister_texture(&mut self, texture: egui::TextureId) {
-        if let egui::TextureId::User(id) = texture {
-            self.user_textures.remove(&id);
-        }
-    }
-
-    fn get_texture_bind_group(
-        &self,
-        texture_id: egui::TextureId,
-    ) -> Result<&wgpu::BindGroup, FrameError> {
-        let bind_group = match texture_id {
-            egui::TextureId::Egui => self.texture_bind_group.as_ref().ok_or_else(|| {
-                FrameError::Internal("egui texture was not set before the first draw".to_string())
-            })?,
-            egui::TextureId::User(id) => {
-                &(self.user_textures.get(&id).ok_or_else(|| {
-                    FrameError::Internal(format!("user texture {} not found", id))
-                })?)
-            }
-        };
-
-        Ok(bind_group)
-    }
+    //     Ok(bind_group)
+    // }
 
     fn update_font_texture(&mut self) {
         let font_texture = self.context().texture();
         // Don't update the texture if it hasn't changed.
-        if self.texture_version == Some(font_texture.version) {
+        if self.font_texture_version == Some(font_texture.version) {
             return;
         }
         // we need to convert the texture into rgba_srgb format
@@ -936,8 +850,8 @@ impl Framework {
         };
         let bind_group = self.egui_texture_to_wgpu(&egui_texture, "font");
 
-        self.texture_version = Some(egui_texture.version);
-        self.texture_bind_group = Some(bind_group);
+        self.font_texture_version = Some(egui_texture.version);
+        self.font_texture_bind_group = Some(bind_group);
     }
 
     /// Assumes egui_texture contains srgb data.
@@ -995,7 +909,7 @@ impl Framework {
             .device()
             .create_bind_group(&wgpu::BindGroupDescriptor {
                 label: Some(format!("{}_bind_group", label).as_str()),
-                layout: &self.texture_bind_group_layout,
+                layout: &self.renderer.image_bind_group_layout(),
                 entries: &[
                     wgpu::BindGroupEntry {
                         binding: 0,
