@@ -1,10 +1,7 @@
 pub mod app;
+pub mod components;
 pub mod mode;
 pub mod render;
-pub mod universe;
-
-use app::{App, AppContex, AppEvent, AppState, Framework};
-use render::{ImageId, RenderHandle, Renderer};
 
 fn main() {
     env_logger::init();

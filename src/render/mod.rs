@@ -1,3 +1,9 @@
+mod camera;
+mod universe;
+
+pub use camera::Camera;
+pub use universe::UniverseRenderer;
+
 use log::info;
 use std::collections::HashMap;
 use std::sync::atomic::AtomicU64;
@@ -26,7 +32,7 @@ impl ImageId {
     }
 }
 
-pub struct Renderer {
+pub struct RenderContext {
     instance: Instance,
     adapter: Adapter,
     device: Device,
@@ -38,7 +44,7 @@ pub struct Renderer {
     images: Mutex<HashMap<u64, wgpu::BindGroup>>,
 }
 
-impl Renderer {
+impl RenderContext {
     pub fn new() -> Self {
         futures::executor::block_on(async {
             info!("Initializing Renderer");
@@ -180,14 +186,14 @@ impl Renderer {
 }
 
 #[derive(Clone)]
-pub struct RenderHandle {
-    inner: Arc<Renderer>,
+pub struct RenderCtxRef {
+    inner: Arc<RenderContext>,
 }
 
-impl RenderHandle {
+impl RenderCtxRef {
     pub fn new() -> Self {
         Self {
-            inner: Arc::new(Renderer::new()),
+            inner: Arc::new(RenderContext::new()),
         }
     }
 
@@ -212,7 +218,7 @@ impl RenderHandle {
     }
 
     pub fn image_bind_group_layout(&self) -> &wgpu::BindGroupLayout {
-        self.image_bind_group_layout()
+        self.inner.image_bind_group_layout()
     }
 
     pub fn get_image_bind_groups(&self) -> &Mutex<HashMap<u64, wgpu::BindGroup>> {
@@ -222,4 +228,15 @@ impl RenderHandle {
     pub fn unregister_image(&self, image: ImageId) {
         self.inner.unregister_image(image)
     }
+}
+
+/// Represents
+pub struct RenderTarget {
+    pub format: wgpu::TextureFormat,
+}
+
+pub struct RenderTargetView<'a> {
+    pub view: &'a wgpu::TextureView,
+    pub width: u32,
+    pub height: u32,
 }

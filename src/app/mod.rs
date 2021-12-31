@@ -1,8 +1,7 @@
 pub mod frame;
 
-pub use frame::Framework;
-
-use crate::RenderHandle;
+use crate::render::RenderCtxRef;
+use frame::Framework;
 use winit::event::Event;
 use winit::event::WindowEvent;
 use winit::event_loop::{ControlFlow, EventLoop};
@@ -17,8 +16,6 @@ use std::sync::Arc;
 
 pub enum AppEvent {
     CloseRequested,
-
-    // TODO this is temporary. Eventually Framework (or at least rendering related functions) will be moved into AppContext
     Frame { ctx: CtxRef },
 }
 
@@ -30,7 +27,7 @@ pub enum AppState {
 #[derive(Clone)]
 pub struct AppContex {
     window: Arc<Window>,
-    renderer: RenderHandle,
+    renderer: RenderCtxRef,
 }
 
 impl AppContex {
@@ -38,7 +35,7 @@ impl AppContex {
         self.window.borrow()
     }
 
-    pub fn renderer(&self) -> RenderHandle {
+    pub fn render(&self) -> RenderCtxRef {
         self.renderer.clone()
     }
 }
@@ -46,7 +43,7 @@ impl AppContex {
 pub struct App {
     event_loop: EventLoop<()>,
     window: Arc<Window>,
-    renderer: RenderHandle,
+    renderer: RenderCtxRef,
 }
 
 impl App {
@@ -59,7 +56,7 @@ impl App {
                 .unwrap(),
         );
 
-        let renderer = RenderHandle::new();
+        let renderer = RenderCtxRef::new();
 
         App {
             event_loop,

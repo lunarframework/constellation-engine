@@ -1,20 +1,15 @@
 pub mod clipboard;
 
-use crate::{ImageId, RenderHandle};
-
-use winit::event::{DeviceEvent, DeviceId};
-use winit::window::{Window, WindowId};
-
+use crate::render::RenderCtxRef;
 use bytemuck::{Pod, Zeroable};
-
+use std::borrow::Borrow;
+use std::num::NonZeroU32;
+use std::sync::Arc;
 use wgpu::{
     util::DeviceExt, PresentMode, Surface, SurfaceConfiguration, TextureFormat, TextureUsages,
 };
-
-use std::borrow::Borrow;
-use std::collections::HashMap;
-use std::num::NonZeroU32;
-use std::sync::Arc;
+use winit::event::{DeviceEvent, DeviceId};
+use winit::window::{Window, WindowId};
 
 /// Builder of ui and manages the various user interations with that ui.
 /// This is a thin wrapper atop `imgui`, an immediete mode gui lib.
@@ -38,7 +33,7 @@ pub struct Framework {
     clipboard: clipboard::Clipboard,
 
     // Composite rendering
-    renderer: RenderHandle,
+    renderer: RenderCtxRef,
     surface: Surface,
     surface_format: TextureFormat,
     render_pipeline: wgpu::RenderPipeline,
@@ -52,7 +47,7 @@ pub struct Framework {
 
 impl Framework {
     /// Creates the gui handler and attaches it to the given window
-    pub fn new(window: Arc<Window>, renderer: RenderHandle, format: TextureFormat) -> Self {
+    pub fn new(window: Arc<Window>, renderer: RenderCtxRef, format: TextureFormat) -> Self {
         let pixels_per_point = window.scale_factor() as f32;
         let context = egui::CtxRef::default();
         context.set_fonts(egui::FontDefinitions::default());

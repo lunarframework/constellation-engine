@@ -1,7 +1,7 @@
 pub mod open;
 pub mod test;
 
-use crate::{App, AppEvent, AppState};
+use crate::app::{App, AppEvent, AppState};
 use clap::ArgMatches;
 
 pub fn new(_matches: &ArgMatches) {}
@@ -20,7 +20,6 @@ pub fn welcome(_matches: &ArgMatches) {
             });
             AppState::Run
         }
-        _ => AppState::Run,
     });
 }
 
