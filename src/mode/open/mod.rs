@@ -1,7 +1,6 @@
 use crate::app::{App, AppEvent, AppState};
 use crate::components::{Star, Transform};
 use crate::render::{Camera, ImageId, RenderCtxRef, UniverseRenderer};
-
 use clap::ArgMatches;
 use starlight::prelude::*;
 

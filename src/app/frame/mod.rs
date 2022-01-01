@@ -198,7 +198,7 @@ impl Framework {
                     label: Some("composite_pipeline"),
                     layout: Some(&pipeline_layout),
                     vertex: wgpu::VertexState {
-                        entry_point: "vs_linear_main",
+                        entry_point: "vs_main",
                         module: &module,
                         buffers: &[wgpu::VertexBufferLayout {
                             array_stride: 5 * 4,

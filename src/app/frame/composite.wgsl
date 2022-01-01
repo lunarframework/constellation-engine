@@ -18,36 +18,36 @@ fn linear_from_srgb(srgb: vec3<f32>) -> vec3<f32> {
     return select(higher, lower, cutoff);
 }
 
+// [[stage(vertex)]]
+// fn vs_linear_main(
+//     [[location(0)]] a_pos: vec2<f32>,
+//     [[location(1)]] a_tex_coord: vec2<f32>,
+//     [[location(2)]] a_color: u32,
+// ) -> VertexOutput {
+//     var out: VertexOutput;
+//     out.tex_coord = a_tex_coord;
+
+//     // [u8; 4] SRGB as u32 -> [r, g, b, a]
+//     let color = vec4<f32>(
+//         f32(a_color & 255u),
+//         f32((a_color >> 8u) & 255u),
+//         f32((a_color >> 16u) & 255u),
+//         f32((a_color >> 24u) & 255u),
+//     );
+//     out.color = vec4<f32>(linear_from_srgb(color.rgb), color.a / 255.0);
+
+//     out.position = vec4<f32>(
+//         2.0 * a_pos.x / r_locals.screen_size.x - 1.0,
+//         1.0 - 2.0 * a_pos.y / r_locals.screen_size.y,
+//         0.0,
+//         1.0,
+//     );
+
+//     return out;
+// }
+
 [[stage(vertex)]]
-fn vs_linear_main(
-    [[location(0)]] a_pos: vec2<f32>,
-    [[location(1)]] a_tex_coord: vec2<f32>,
-    [[location(2)]] a_color: u32,
-) -> VertexOutput {
-    var out: VertexOutput;
-    out.tex_coord = a_tex_coord;
-
-    // [u8; 4] SRGB as u32 -> [r, g, b, a]
-    let color = vec4<f32>(
-        f32(a_color & 255u),
-        f32((a_color >> 8u) & 255u),
-        f32((a_color >> 16u) & 255u),
-        f32((a_color >> 24u) & 255u),
-    );
-    out.color = vec4<f32>(linear_from_srgb(color.rgb), color.a / 255.0);
-
-    out.position = vec4<f32>(
-        2.0 * a_pos.x / r_locals.screen_size.x - 1.0,
-        1.0 - 2.0 * a_pos.y / r_locals.screen_size.y,
-        0.0,
-        1.0,
-    );
-
-    return out;
-}
-
-[[stage(vertex)]]
-fn vs_srgb_main(
+fn vs_main(
     [[location(0)]] a_pos: vec2<f32>,
     [[location(1)]] a_tex_coord: vec2<f32>,
     [[location(2)]] a_color: u32,

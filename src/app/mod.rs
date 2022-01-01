@@ -86,7 +86,7 @@ impl App {
         let frame = Framework::new(
             window.clone(),
             renderer.clone(),
-            wgpu::TextureFormat::Bgra8UnormSrgb,
+            wgpu::TextureFormat::Bgra8Unorm,
         );
 
         let mut window = ManuallyDrop::new(window);
