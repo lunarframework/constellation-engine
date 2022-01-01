@@ -21,7 +21,11 @@ pub struct StarPipeline {
 }
 
 impl StarPipeline {
-    pub fn new(render: RenderCtxRef, output_format: wgpu::TextureFormat) -> Self {
+    pub fn new(
+        render: RenderCtxRef,
+        output_format: wgpu::TextureFormat,
+        depth_format: wgpu::TextureFormat,
+    ) -> Self {
         let module = render
             .device()
             .create_shader_module(&wgpu::include_wgsl!("shaders/star.wgsl"));
@@ -73,10 +77,16 @@ impl StarPipeline {
                     conservative: false,
                     cull_mode: Some(wgpu::Face::Back),
                     front_face: wgpu::FrontFace::Cw,
-                    polygon_mode: wgpu::PolygonMode::Line,
+                    polygon_mode: wgpu::PolygonMode::Fill,
                     strip_index_format: None,
                 },
-                depth_stencil: None,
+                depth_stencil: Some(wgpu::DepthStencilState {
+                    format: depth_format,
+                    depth_write_enabled: true,
+                    depth_compare: wgpu::CompareFunction::Less, // 1.
+                    stencil: wgpu::StencilState::default(),     // 2.
+                    bias: wgpu::DepthBiasState::default(),
+                }),
                 multisample: wgpu::MultisampleState {
                     alpha_to_coverage_enabled: false,
                     count: 1,
@@ -199,7 +209,9 @@ impl StarPipeline {
         let proj_view = camera.compute_proj_view_matrix();
 
         for (i, (_entity, (transform, _star))) in query.iter().enumerate() {
-            self.staging_data[i].proj_view_model = proj_view * transform.compute_matrix();
+            self.staging_data[i].proj_view = proj_view;
+            self.staging_data[i].camera_pos = camera.position().extend(1.0);
+            self.staging_data[i].transform = transform.compute_matrix();
         }
 
         if self.count > 0 {
@@ -236,12 +248,14 @@ impl StarPipeline {
     }
 }
 
-use glam::{Mat4, Vec2, Vec3};
+use glam::{Mat4, Vec2, Vec3, Vec4};
 
 #[repr(C)]
 #[derive(Copy, Clone, Default)]
 struct UniformBuffer {
-    proj_view_model: Mat4,
+    proj_view: Mat4,
+    camera_pos: Vec4,
+    transform: Mat4,
 }
 
 use bytemuck::{Pod, Zeroable};

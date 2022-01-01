@@ -65,7 +65,7 @@ impl RenderContext {
                 .request_device(
                     &DeviceDescriptor {
                         label: Some("Rendering GPU"),
-                        features: Features::POLYGON_MODE_LINE,
+                        features: Features::empty(),
                         limits: Limits::default(),
                     },
                     None,

@@ -11,6 +11,7 @@ resolver = "2"
 bytemuck = "1.7.2"
 clap = "2.34.0"
 egui = "0.16.1"
+epaint = "0.16.0"
 env_logger = "0.9.0"
 futures = "0.3.17"
 glam = { version = "0.20.2", features = ["bytemuck"] }
