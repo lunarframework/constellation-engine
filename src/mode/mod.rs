@@ -1,10 +1,9 @@
+pub mod new;
 pub mod open;
 pub mod test;
 
 use crate::app::{App, AppEvent, AppState};
 use clap::ArgMatches;
-
-pub fn new(_matches: &ArgMatches) {}
 
 pub fn welcome(_matches: &ArgMatches) {
     App::new().run(|event| match event {
@@ -23,5 +22,6 @@ pub fn welcome(_matches: &ArgMatches) {
     });
 }
 
+pub use new::new;
 pub use open::open;
 pub use test::test;

@@ -1,6 +1,7 @@
 pub mod app;
 pub mod components;
 pub mod mode;
+pub mod project;
 pub mod render;
 
 fn main() {

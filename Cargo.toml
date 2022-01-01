@@ -7,19 +7,21 @@ resolver = "2"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-winit = "0.25.0"
-# imgui = "0.8.0"
-log = "0.4.0"
+
+bytemuck = "1.7.2"
+clap = "2.34.0"
+egui = "0.16.1"
 env_logger = "0.9.0"
 futures = "0.3.17"
-wgpu = "0.11.1"
-bytemuck = { version = "1.7.2", features = ["derive"] }
-ndarray = "0.15.3"
-egui = "0.15.0"
-clap = "2.34.0"
 glam = { version = "0.20.2", features = ["bytemuck"] }
+log = "0.4.0"
+wgpu = "0.11.1"
+winit = "0.25.0"
 
 starlight = { path = "crates/starlight", version = "0.1.0" }
+
+serde = { version = "1.0.132", features = ["derive"] }
+toml = "0.5.8"
 
 [workspace]
 

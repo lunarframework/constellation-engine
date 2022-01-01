@@ -160,6 +160,14 @@ impl Camera {
         &mut self.scale
     }
 
+    pub fn rotate(&mut self, rotation: Quat) {
+        self.rotation *= rotation;
+    }
+
+    pub fn translate(&mut self, translation: Vec3) {
+        self.position += translation;
+    }
+
     pub fn compute_projection_matrix(&self) -> Mat4 {
         Mat4::perspective_infinite_reverse_lh(self.fovy, self.aspect(), self.near)
     }

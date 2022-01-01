@@ -71,9 +71,9 @@ impl StarPipeline {
                     topology: wgpu::PrimitiveTopology::TriangleList,
                     clamp_depth: false,
                     conservative: false,
-                    cull_mode: None,
-                    front_face: wgpu::FrontFace::default(),
-                    polygon_mode: wgpu::PolygonMode::default(),
+                    cull_mode: Some(wgpu::Face::Back),
+                    front_face: wgpu::FrontFace::Cw,
+                    polygon_mode: wgpu::PolygonMode::Line,
                     strip_index_format: None,
                 },
                 depth_stencil: None,
@@ -273,15 +273,15 @@ impl StarMesh {
 
         for face in faces.iter_mut() {
             for vertex in face.vertices.iter_mut() {
-                *vertex = vertex.normalize();
+                // *vertex = vertex.normalize();
 
-                // let x2 = vertex.x * vertex.x;
-                // let y2 = vertex.y * vertex.y;
-                // let z2 = vertex.z * vertex.z;
+                let x2 = vertex.x * vertex.x;
+                let y2 = vertex.y * vertex.y;
+                let z2 = vertex.z * vertex.z;
 
-                // vertex.x *= (1.0 - (y2 + z2) / 2.0 + (y2 * z2) / 3.0).sqrt();
-                // vertex.y *= (1.0 - (z2 + x2) / 2.0 + (z2 * x2) / 3.0).sqrt();
-                // vertex.z *= (1.0 - (x2 + y2) / 2.0 + (x2 * y2) / 3.0).sqrt();
+                vertex.x *= (1.0 - (y2 + z2) / 2.0 + (y2 * z2) / 3.0).sqrt();
+                vertex.y *= (1.0 - (z2 + x2) / 2.0 + (z2 * x2) / 3.0).sqrt();
+                vertex.z *= (1.0 - (x2 + y2) / 2.0 + (x2 * y2) / 3.0).sqrt();
             }
         }
 
@@ -291,7 +291,7 @@ impl StarMesh {
 
 fn create_face(normal: Vec3, resolution: u32) -> MeshData {
     assert!(resolution > 1, "Resolution must be larger than 1");
-    let axis_a = Vec3::new(normal.x, normal.z, normal.y);
+    let axis_a = Vec3::new(normal.y, normal.z, normal.x);
     let axis_b = normal.cross(axis_a);
     let mut vertices = vec![Vec3::zeroed(); (resolution * resolution) as usize];
     let mut triangles = vec![0u32; ((resolution - 1) * (resolution - 1) * 6) as usize];
@@ -336,6 +336,15 @@ fn create_faces(resolution: u32) -> [MeshData; 6] {
     ];
 
     let face_normals: [Vec3; 6] = [Vec3::X, -Vec3::X, Vec3::Y, -Vec3::Y, Vec3::Z, -Vec3::Z];
+
+    // let face_normals: [Vec3; 6] = [
+    //     Vec3::new(0.0, 1.0, 1.0).normalize(),
+    //     Vec3::new(0.0, -1.0, -1.0).normalize(),
+    //     Vec3::new(1.0, 1.0, 1.0).normalize(),
+    //     Vec3::new(-1.0, 1.0, 1.0).normalize(),
+    //     Vec3::Z,
+    //     -Vec3::Z,
+    // ];
 
     for (i, &normal) in face_normals.iter().enumerate() {
         all_faces[i] = create_face(normal, resolution);

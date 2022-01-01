@@ -1,18 +1,15 @@
 pub mod frame;
 
 use crate::render::RenderCtxRef;
+use egui::CtxRef;
 use frame::Framework;
+use std::borrow::Borrow;
+use std::sync::Arc;
 use winit::event::Event;
 use winit::event::WindowEvent;
 use winit::event_loop::{ControlFlow, EventLoop};
 use winit::window::Window;
 use winit::window::WindowBuilder;
-
-use std::borrow::Borrow;
-
-use egui::CtxRef;
-
-use std::sync::Arc;
 
 pub enum AppEvent {
     CloseRequested,

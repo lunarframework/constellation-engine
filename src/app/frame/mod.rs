@@ -565,11 +565,9 @@ impl Framework {
         if self.raw_input.modifiers.ctrl || self.raw_input.modifiers.command {
             // Treat as zoom instead:
             let factor = (delta.y / 200.0).exp();
-            // self.raw_input.events.push(egui::Event::Zoom(factor));
-            self.raw_input.zoom_delta = factor;
+            self.raw_input.events.push(egui::Event::Zoom(factor));
         } else {
-            // self.raw_input.events.push(egui::Event::Scroll(delta));
-            self.raw_input.scroll_delta = delta;
+            self.raw_input.events.push(egui::Event::Scroll(delta));
         }
     }
 
@@ -664,7 +662,7 @@ impl Framework {
 
         let paint_jobs = self.context().tessellate(shapes);
 
-        self.update_font_texture();
+        self.update_font_image();
         self.update_buffers(&paint_jobs);
 
         let output_frame = match self.surface.get_current_texture() {
@@ -823,8 +821,8 @@ impl Framework {
     //     Ok(bind_group)
     // }
 
-    fn update_font_texture(&mut self) {
-        let font_texture = self.context().texture();
+    fn update_font_image(&mut self) {
+        let font_texture = self.context().font_image();
         // Don't update the texture if it hasn't changed.
         if self.font_texture_version == Some(font_texture.version) {
             return;
@@ -837,13 +835,13 @@ impl Framework {
             pixels.push(srgba.b());
             pixels.push(srgba.a());
         }
-        let egui_texture = egui::Texture {
+        let egui_texture = egui::FontImage {
             version: font_texture.version,
             width: font_texture.width,
             height: font_texture.height,
             pixels,
         };
-        let bind_group = self.egui_texture_to_wgpu(&egui_texture, "font");
+        let bind_group = self.font_image_to_wgpu(&egui_texture, "font");
 
         self.font_texture_version = Some(egui_texture.version);
         self.font_texture_bind_group = Some(bind_group);
@@ -851,10 +849,10 @@ impl Framework {
 
     /// Assumes egui_texture contains srgb data.
     /// This does not match how `egui::Texture` is documented as of writing, but this is how it is used for user textures.
-    fn egui_texture_to_wgpu(&self, egui_texture: &egui::Texture, label: &str) -> wgpu::BindGroup {
+    fn font_image_to_wgpu(&self, font_image: &egui::FontImage, label: &str) -> wgpu::BindGroup {
         let size = wgpu::Extent3d {
-            width: egui_texture.width as u32,
-            height: egui_texture.height as u32,
+            width: font_image.width as u32,
+            height: font_image.height as u32,
             depth_or_array_layers: 1,
         };
 
@@ -878,13 +876,13 @@ impl Framework {
                 origin: wgpu::Origin3d::ZERO,
                 aspect: wgpu::TextureAspect::All,
             },
-            egui_texture.pixels.as_slice(),
+            font_image.pixels.as_slice(),
             wgpu::ImageDataLayout {
                 offset: 0,
                 bytes_per_row: NonZeroU32::new(
-                    (egui_texture.pixels.len() / egui_texture.height) as u32,
+                    (font_image.pixels.len() / font_image.height) as u32,
                 ),
-                rows_per_image: NonZeroU32::new(egui_texture.height as u32),
+                rows_per_image: NonZeroU32::new(font_image.height as u32),
             },
             size,
         );
@@ -924,7 +922,7 @@ impl Framework {
 
     /// Uploads the uniform, vertex and index data used by the render pass.
     /// Should be called before `execute()`.
-    fn update_buffers(&mut self, paint_jobs: &[egui::paint::ClippedMesh]) {
+    fn update_buffers(&mut self, paint_jobs: &[egui::epaint::ClippedMesh]) {
         let index_size = self.index_buffers.len();
         let vertex_size = self.vertex_buffers.len();
 
