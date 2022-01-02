@@ -71,29 +71,54 @@ fn simplex_noise_3d(v: vec3<f32>) -> f32 {
 
 fn noise(
     position: vec3<f32>,
+    scale: f32,
     lacunarity: f32,
     gain: f32,
-    octaves: i32
+    octaves: f32
 ) -> f32 {
     var total = 0.0;
      
     var amplitude = 1.0;
 
-    var pos = position;
+    var pos = position * scale;
 
-    for (var i: i32 = 0; i < octaves; i= i + 1) {
+    var i = 0.0;
+
+    loop {
+        if (i > octaves) {
+            break;
+        }
+
+        i = i + 1.0;
+
         total = total + amplitude * (simplex_noise_3d(pos) - 0.5);
         pos = pos * lacunarity;
         amplitude = amplitude *  gain;
     }
-     
+    
     return total;
 }
+
+struct VertexInput {
+    [[location(0)]] pos: vec3<f32>;
+
+    [[location(1)]] transform_matrix_0: vec4<f32>;
+    [[location(2)]] transform_matrix_1: vec4<f32>;
+    [[location(3)]] transform_matrix_2: vec4<f32>;
+    [[location(4)]] transform_matrix_3: vec4<f32>;
+
+    [[location(5)]] color: vec4<f32>;
+    [[location(6)]] granules: vec4<f32>;
+    [[location(7)]] sunspots: vec4<f32>;
+};
 
 struct VertexOutput {
     [[location(0)]] vert_pos: vec3<f32>;
     [[location(1)]] to_camera_vec: vec3<f32>;
-    [[builtin(position)]] pos: vec4<f32>;
+    [[location(2)]] color: vec4<f32>;
+    [[location(3)]] granules: vec4<f32>;
+    [[location(4)]] sunspots: vec4<f32>;
+    [[builtin(position)]] clip_pos: vec4<f32>;
 };
 
 [[block]] struct Enviornment {
@@ -102,31 +127,29 @@ struct VertexOutput {
     anim_time: f32;
 };
 
-[[block]] struct Star {
-    proj_view: mat4x4<f32>;
-    color: vec4<f32>;
-    radius: f32;
-};
-
-[[block]] struct Locals {
-    proj_view: mat4x4<f32>;
-    camera_pos: vec4<f32>;
-    transform: mat4x4<f32>;
-};
-[[group(0), binding(0)]] var<uniform> r_locals: Locals;
+[[group(0), binding(0)]] var<uniform> env: Enviornment;
 
 [[stage(vertex)]]
 fn vs_main(
-    [[location(0)]] a_pos: vec3<f32>,
+    in: VertexInput,
 ) -> VertexOutput {
+
+    let transform = mat4x4<f32>(
+        in.transform_matrix_0,
+        in.transform_matrix_1,
+        in.transform_matrix_2,
+        in.transform_matrix_3,
+    );
+
+    let world_pos = transform * vec4<f32>(in.pos, 1.0);
+
     var out: VertexOutput;
-
-    out.vert_pos = a_pos;
-    
-    let world_pos = r_locals.transform * vec4<f32>(a_pos, 1.0);
-
-    out.pos = r_locals.proj_view * world_pos;
-    out.to_camera_vec = r_locals.camera_pos.xyz - world_pos.xyz;
+    out.vert_pos = in.pos;
+    out.clip_pos = env.proj_view * world_pos;
+    out.to_camera_vec = env.camera_pos.xyz - world_pos.xyz;
+    out.color = in.color;
+    out.granules = in.granules;
+    out.sunspots = in.sunspots;
 
     return out;
 }
@@ -135,25 +158,30 @@ fn vs_main(
 
 [[stage(fragment)]]
 fn fs_main(in: VertexOutput) -> [[location(0)]] vec4<f32> {
+    
+    let scale = in.granules.x;
+    let lacunarity = in.granules.y;
+    let frequency = in.granules.z;
+    let octaves = in.granules.w;
 
-    let n = simplex_noise_3d(in.vert_pos);
+    let n = (noise(in.vert_pos, scale, lacunarity, frequency, octaves) + 1.0) + 0.5;
 
-    let n = (noise(in.vert_pos * 20.0, 40.0, 0.5, 3) + 1.0) * 0.5;
-    return vec4<f32>(n, n, n, 1.0);
+    // let n = (noise(in.vert_pos * 20.0, 40.0, 0.5, 3) + 1.0) * 0.5;
 
-    // vec4 position4D = vec4(pass_Position, unDT);
 	// float n = (noise(position4D , 2, 40.0, 0.7) + 1.0) * 0.5;
 	// //float total = n/1.5;
 
-	// vec4 sPosition = position4D * unRadius;
-	// //Sunspots
-	// float s = 0.3;
-	// float frequency = .00001;
- 	// float t1 = snoise(sPosition * frequency) - s;
-	// float t2 = snoise((sPosition + unRadius) * frequency) - s;
-	// float ss = (max(t1,0.0)*max(t2,0.0)) * 2.0;
-	// //Acumulate total noise
-	// float total = n-ss;
+	//Sunspots
+    let scale = in.sunspots.x;
+    let offset = in.sunspots.y;
+    let frequency = in.sunspots.z;
+    let radius = in.sunspots.w;
+    let t1 = simplex_noise_3d(in.vert_pos * frequency) - offset;
+    let t2 = simplex_noise_3d((in.vert_pos + radius) * frequency) - offset;
+    let ss = (max(t1, 0.0) * max(t2, 0.0)) * scale;
+    let total = n - ss;
+
+    return vec4<f32>(vec3<f32>(total * in.color.xyz), 1.0);
 
 	// //Color
 	// float u = (starTemperature - 800.0)/29200.0f;

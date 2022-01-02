@@ -12,7 +12,8 @@ A relativistic simulation engine written in rust.
     - `open`: Opens a project folder for editing.
     - `simulate`: Simulates the current project, storing the result in the `simulations` subfolder.
     - `view`: Views a given simulation.
-- `project`: Manages project serialization and disk storage
+- `project`: Manages project serialization and disk storage.
 - `render`: All code required to render data, both the ui, and the world.
+- `ui`: Shared Ui Elements.
 
 # TODO

@@ -1,7 +1,9 @@
 mod camera;
+mod mesh;
 mod universe;
 
 pub use camera::Camera;
+pub use mesh::CubeSphere;
 pub use universe::UniverseRenderer;
 
 use log::info;

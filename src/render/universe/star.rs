@@ -1,23 +1,25 @@
 use super::Camera;
 use super::RenderCtxRef;
 use crate::components::{Star, Transform};
+use crate::render::CubeSphere;
 use starlight::World;
 use wgpu::util::DeviceExt;
 
 pub struct StarPipeline {
     render: RenderCtxRef,
     pipeline: wgpu::RenderPipeline,
-    bind_group_layout: wgpu::BindGroupLayout,
 
-    capacity: usize,
-    count: usize,
-    bind_groups: Vec<wgpu::BindGroup>,
-    staging_data: Vec<UniformBuffer>,
-    uniforms: Option<wgpu::Buffer>,
+    env_bind_group: wgpu::BindGroup,
+    env_buffer: wgpu::Buffer,
+    env_data: EnvBuffer,
 
-    indices_per_buffer: u32,
-    vertex_buffers: Vec<wgpu::Buffer>,
-    index_buffers: Vec<wgpu::Buffer>,
+    index_count: u32,
+    vertex_buffer: wgpu::Buffer,
+    index_buffer: wgpu::Buffer,
+
+    instance_buffer_size: u64,
+    instance_buffer: wgpu::Buffer,
+    instance_data: Vec<InstanceBuffer>,
 }
 
 impl StarPipeline {
@@ -30,11 +32,18 @@ impl StarPipeline {
             .device()
             .create_shader_module(&wgpu::include_wgsl!("shaders/star.wgsl"));
 
-        let uniform_bind_group_layout =
+        let env_buffer = render.device().create_buffer(&wgpu::BufferDescriptor {
+            label: Some("Star Env Buffer"),
+            size: std::mem::size_of::<EnvBuffer>() as u64,
+            usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::UNIFORM,
+            mapped_at_creation: false,
+        });
+
+        let env_bind_group_layout =
             render
                 .device()
                 .create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-                    label: Some("star_uniform_bind_group_layout"),
+                    label: Some("Star Env Bind Group Layout"),
                     entries: &[wgpu::BindGroupLayoutEntry {
                         binding: 0,
                         visibility: wgpu::ShaderStages::VERTEX,
@@ -47,12 +56,27 @@ impl StarPipeline {
                     }],
                 });
 
+        let env_bind_group = render
+            .device()
+            .create_bind_group(&wgpu::BindGroupDescriptor {
+                label: Some("Star Env Bind Group"),
+                layout: &env_bind_group_layout,
+                entries: &[wgpu::BindGroupEntry {
+                    binding: 0,
+                    resource: wgpu::BindingResource::Buffer(wgpu::BufferBinding {
+                        buffer: &env_buffer,
+                        offset: 0,
+                        size: None,
+                    }),
+                }],
+            });
+
         let pipeline_layout =
             render
                 .device()
                 .create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
                     label: Some("star_pipeline_layout"),
-                    bind_group_layouts: &[&uniform_bind_group_layout],
+                    bind_group_layouts: &[&env_bind_group_layout],
                     push_constant_ranges: &[],
                 });
 
@@ -64,12 +88,22 @@ impl StarPipeline {
                 vertex: wgpu::VertexState {
                     entry_point: "vs_main",
                     module: &module,
-                    buffers: &[wgpu::VertexBufferLayout {
-                        array_stride: 3 * 4,
-                        step_mode: wgpu::VertexStepMode::Vertex,
-                        // 0: vec3 position
-                        attributes: &wgpu::vertex_attr_array![0 => Float32x3],
-                    }],
+                    buffers: &[
+                        wgpu::VertexBufferLayout {
+                            array_stride: 4 * 3,
+                            step_mode: wgpu::VertexStepMode::Vertex,
+                            // 0: vec3 position
+                            attributes: &wgpu::vertex_attr_array![0 => Float32x3],
+                        },
+                        wgpu::VertexBufferLayout {
+                            array_stride: 4 * 4 * 6,
+                            step_mode: wgpu::VertexStepMode::Instance,
+                            // 1-4: mat4x4 transform
+                            // 5: color
+                            // 6: granule settings
+                            attributes: &wgpu::vertex_attr_array![1 => Float32x4, 2 => Float32x4, 3 => Float32x4, 4 => Float32x4, 5 => Float32x4, 6 => Float32x4, 7 => Float32x4]
+                        },
+                    ],
                 },
                 primitive: wgpu::PrimitiveState {
                     topology: wgpu::PrimitiveTopology::TriangleList,
@@ -114,113 +148,112 @@ impl StarPipeline {
                 }),
             });
 
-        let mesh = StarMesh::new(10);
+        let mesh = CubeSphere::new(10);
 
-        let mut vertex_buffers = Vec::with_capacity(6);
-        let mut index_buffers = Vec::with_capacity(6);
+        let index_count = mesh.indices().len() as u32;
 
-        let mut indices_per_buffer = 0;
+        let vertex_buffer = render
+            .device()
+            .create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                label: None,
+                contents: bytemuck::cast_slice(mesh.vertices()),
+                usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
+            });
 
-        for face in mesh.faces.iter() {
-            vertex_buffers.push(render.device().create_buffer_init(
-                &wgpu::util::BufferInitDescriptor {
-                    label: None,
-                    contents: as_byte_slice(face.vertices.as_slice()),
-                    usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
-                },
-            ));
+        let index_buffer = render
+            .device()
+            .create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                label: None,
+                contents: bytemuck::cast_slice(mesh.indices()),
+                usage: wgpu::BufferUsages::INDEX | wgpu::BufferUsages::COPY_DST,
+            });
 
-            index_buffers.push(render.device().create_buffer_init(
-                &wgpu::util::BufferInitDescriptor {
-                    label: None,
-                    contents: as_byte_slice(face.triangles.as_slice()),
-                    usage: wgpu::BufferUsages::INDEX | wgpu::BufferUsages::COPY_DST,
-                },
-            ));
-
-            indices_per_buffer = face.triangles.len() as u32;
-        }
+        let instance_buffer = render.device().create_buffer(&wgpu::BufferDescriptor {
+            label: Some("Star Env Buffer"),
+            size: 0,
+            usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::VERTEX,
+            mapped_at_creation: false,
+        });
 
         Self {
             render: render,
             pipeline,
-            bind_group_layout: uniform_bind_group_layout,
-            capacity: 0,
-            count: 0,
-            staging_data: Vec::default(),
-            uniforms: None,
-            bind_groups: Vec::default(),
 
-            indices_per_buffer,
-            vertex_buffers,
-            index_buffers,
+            env_bind_group,
+            env_buffer,
+            env_data: EnvBuffer::default(),
+
+            index_count,
+            vertex_buffer,
+            index_buffer,
+
+            instance_buffer_size: 0,
+            instance_buffer,
+            instance_data: Vec::new(),
         }
     }
 
     pub fn update(&mut self, world: &World, camera: &Camera) {
+        // **********************
+        // Update Enviornment ***
+        // **********************
+
+        let proj_view = camera.compute_proj_view_matrix();
+        self.env_data.proj_view = proj_view;
+        self.env_data.camera_pos = camera.position().extend(1.0);
+        self.env_data.anim_time = 0.0;
+
+        self.render.queue().write_buffer(
+            &self.env_buffer,
+            0,
+            bytemuck::cast_slice(&[self.env_data]),
+        );
+
+        // ***********************
+        // Update Instances ******
+        // ***********************
+
         let mut query = world.query::<(&Transform, &Star)>();
 
         let count = query.iter().count();
 
-        if self.capacity < count || self.uniforms.is_none() {
-            self.capacity = count;
-            self.uniforms = Some(self.render.device().create_buffer(&wgpu::BufferDescriptor {
-                label: None,
-                size: (count * std::mem::size_of::<UniformBuffer>()) as u64,
-                usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+        self.instance_data.clear();
+        self.instance_data.reserve(count);
+
+        for (_entity, (transform, star)) in query.iter() {
+            self.instance_data.push(InstanceBuffer {
+                transform: transform.compute_matrix(),
+                color: star.color,
+                ganules: Vec4::new(
+                    star.granule_scale,
+                    star.granule_lacunariy,
+                    star.granule_freqency,
+                    star.granule_octaves,
+                ),
+                sunspots: Vec4::new(
+                    star.sunspots_scale,
+                    star.sunspots_offset,
+                    star.sunspots_frequency,
+                    star.sunspots_radius,
+                ),
+            });
+        }
+
+        if (count * std::mem::size_of::<InstanceBuffer>()) as u64 > self.instance_buffer_size {
+            self.instance_buffer_size = (count * std::mem::size_of::<InstanceBuffer>()) as u64;
+            self.instance_buffer = self.render.device().create_buffer(&wgpu::BufferDescriptor {
+                label: Some("Star Env Buffer"),
+                size: self.instance_buffer_size,
+                usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::VERTEX,
                 mapped_at_creation: false,
-            }));
-
-            self.bind_groups.clear();
-            self.bind_groups.reserve(count);
-
-            self.staging_data.clear();
-            self.staging_data.reserve(count);
-
-            for i in 0..count {
-                self.bind_groups.push(
-                    self.render
-                        .device()
-                        .create_bind_group(&wgpu::BindGroupDescriptor {
-                            label: None,
-                            layout: &self.bind_group_layout,
-                            entries: &[wgpu::BindGroupEntry {
-                                binding: 0,
-                                resource: wgpu::BindingResource::Buffer(wgpu::BufferBinding {
-                                    buffer: (&self.uniforms).as_ref().unwrap(),
-                                    offset: (i * std::mem::size_of::<UniformBuffer>()) as u64,
-                                    size: Some(
-                                        std::num::NonZeroU64::new(
-                                            std::mem::size_of::<UniformBuffer>() as u64,
-                                        )
-                                        .unwrap(),
-                                    ),
-                                }),
-                            }],
-                        }),
-                );
-
-                self.staging_data.push(UniformBuffer::default());
-            }
+            });
         }
 
-        self.count = count;
-
-        let proj_view = camera.compute_proj_view_matrix();
-
-        for (i, (_entity, (transform, _star))) in query.iter().enumerate() {
-            self.staging_data[i].proj_view = proj_view;
-            self.staging_data[i].camera_pos = camera.position().extend(1.0);
-            self.staging_data[i].transform = transform.compute_matrix();
-        }
-
-        if self.count > 0 {
-            self.render.queue().write_buffer(
-                (&self.uniforms).as_ref().unwrap(),
-                0,
-                bytemuck::cast_slice(&self.staging_data[0..self.count]),
-            );
-        }
+        self.render.queue().write_buffer(
+            &self.instance_buffer,
+            0,
+            bytemuck::cast_slice(self.instance_data.as_slice()),
+        );
     }
 
     pub fn render<'s, 'r>(&'s self, render_pass: &'r mut wgpu::RenderPass<'s>, camera: &Camera) {
@@ -234,135 +267,45 @@ impl StarPipeline {
             1.0,
         );
         render_pass.set_scissor_rect(0, 0, camera.width(), camera.height());
-
-        for bind_group in self.bind_groups.iter() {
-            render_pass.set_bind_group(0, bind_group, &[]);
-
-            for i in 0..6 {
-                render_pass.set_vertex_buffer(0, self.vertex_buffers[i].slice(..));
-                render_pass
-                    .set_index_buffer(self.index_buffers[i].slice(..), wgpu::IndexFormat::Uint32);
-                render_pass.draw_indexed(0..self.indices_per_buffer, 0, 0..1);
-            }
-        }
+        render_pass.set_bind_group(0, &self.env_bind_group, &[]);
+        render_pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
+        render_pass.set_vertex_buffer(1, self.instance_buffer.slice(..));
+        render_pass.set_index_buffer(self.index_buffer.slice(..), wgpu::IndexFormat::Uint32);
+        render_pass.draw_indexed(0..self.index_count, 0, 0..self.instance_data.len() as u32);
     }
-}
-
-use glam::{Mat4, Vec2, Vec3, Vec4};
-
-#[repr(C)]
-#[derive(Copy, Clone, Default)]
-struct UniformBuffer {
-    proj_view: Mat4,
-    camera_pos: Vec4,
-    transform: Mat4,
 }
 
 use bytemuck::{Pod, Zeroable};
+use glam::{Mat4, Vec4};
 
-unsafe impl Pod for UniformBuffer {}
-
-unsafe impl Zeroable for UniformBuffer {}
-
-// Needed since we can't use bytemuck for external types.
-fn as_byte_slice<T>(slice: &[T]) -> &[u8] {
-    let len = slice.len() * std::mem::size_of::<T>();
-    let ptr = slice.as_ptr() as *const u8;
-    unsafe { std::slice::from_raw_parts(ptr, len) }
+#[repr(C)]
+#[derive(Copy, Clone, Default)]
+struct EnvBuffer {
+    proj_view: Mat4,
+    camera_pos: Vec4,
+    anim_time: f32,
 }
 
-#[derive(Default, Clone)]
-pub struct MeshData {
-    pub vertices: Vec<Vec3>,
-    pub triangles: Vec<u32>,
+unsafe impl Pod for EnvBuffer {}
+
+unsafe impl Zeroable for EnvBuffer {}
+
+#[repr(C)]
+#[derive(Copy, Clone, Default)]
+struct InstanceBuffer {
+    transform: Mat4,
+    color: Vec4,
+    ganules: Vec4,
+    sunspots: Vec4,
 }
 
-pub struct StarMesh {
-    pub faces: [MeshData; 6],
-}
+unsafe impl Pod for InstanceBuffer {}
 
-impl StarMesh {
-    pub fn new(resolution: u32) -> Self {
-        let mut faces = create_faces(resolution);
+unsafe impl Zeroable for InstanceBuffer {}
 
-        for face in faces.iter_mut() {
-            for vertex in face.vertices.iter_mut() {
-                // *vertex = vertex.normalize();
-
-                let x2 = vertex.x * vertex.x;
-                let y2 = vertex.y * vertex.y;
-                let z2 = vertex.z * vertex.z;
-
-                vertex.x *= (1.0 - (y2 + z2) / 2.0 + (y2 * z2) / 3.0).sqrt();
-                vertex.y *= (1.0 - (z2 + x2) / 2.0 + (z2 * x2) / 3.0).sqrt();
-                vertex.z *= (1.0 - (x2 + y2) / 2.0 + (x2 * y2) / 3.0).sqrt();
-            }
-        }
-
-        Self { faces }
-    }
-}
-
-fn create_face(normal: Vec3, resolution: u32) -> MeshData {
-    assert!(resolution > 1, "Resolution must be larger than 1");
-    let axis_a = Vec3::new(normal.y, normal.z, normal.x);
-    let axis_b = normal.cross(axis_a);
-    let mut vertices = vec![Vec3::zeroed(); (resolution * resolution) as usize];
-    let mut triangles = vec![0u32; ((resolution - 1) * (resolution - 1) * 6) as usize];
-
-    let mut tri_index = 0usize;
-
-    for y in 0..resolution {
-        for x in 0..resolution {
-            let vertex_index = x + y * resolution;
-            let t = Vec2::new(x as f32, y as f32) / (resolution - 1) as f32;
-            let point = normal + axis_a * (2.0 * t.x - 1.0) + axis_b * (2.0 * t.y - 1.0);
-            vertices[vertex_index as usize] = point;
-
-            if x != (resolution - 1) && y != (resolution - 1) {
-                triangles[tri_index + 0] = vertex_index;
-                triangles[tri_index + 1] = vertex_index + resolution + 1;
-                triangles[tri_index + 2] = vertex_index + resolution;
-                triangles[tri_index + 3] = vertex_index;
-                triangles[tri_index + 4] = vertex_index + 1;
-                triangles[tri_index + 5] = vertex_index + resolution + 1;
-                tri_index += 6;
-            }
-        }
-    }
-
-    MeshData {
-        vertices,
-        triangles,
-    }
-}
-
-// TODO Optimize this (and ideally fit all meshes into one)
-
-fn create_faces(resolution: u32) -> [MeshData; 6] {
-    let mut all_faces = [
-        MeshData::default(),
-        MeshData::default(),
-        MeshData::default(),
-        MeshData::default(),
-        MeshData::default(),
-        MeshData::default(),
-    ];
-
-    let face_normals: [Vec3; 6] = [Vec3::X, -Vec3::X, Vec3::Y, -Vec3::Y, Vec3::Z, -Vec3::Z];
-
-    // let face_normals: [Vec3; 6] = [
-    //     Vec3::new(0.0, 1.0, 1.0).normalize(),
-    //     Vec3::new(0.0, -1.0, -1.0).normalize(),
-    //     Vec3::new(1.0, 1.0, 1.0).normalize(),
-    //     Vec3::new(-1.0, 1.0, 1.0).normalize(),
-    //     Vec3::Z,
-    //     -Vec3::Z,
-    // ];
-
-    for (i, &normal) in face_normals.iter().enumerate() {
-        all_faces[i] = create_face(normal, resolution);
-    }
-
-    all_faces
-}
+// // Needed since we can't use bytemuck for external types.
+// fn as_byte_slice<T>(slice: &[T]) -> &[u8] {
+//     let len = slice.len() * std::mem::size_of::<T>();
+//     let ptr = slice.as_ptr() as *const u8;
+//     unsafe { std::slice::from_raw_parts(ptr, len) }
+// }

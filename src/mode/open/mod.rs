@@ -1,117 +1,85 @@
 use crate::app::{App, AppEvent, AppState};
 use crate::components::{Star, Transform};
 use crate::project::Project;
-use crate::render::{Camera, ImageId, RenderCtxRef, UniverseRenderer};
+use crate::render::UniverseRenderer;
+use crate::ui::Viewport;
 use clap::ArgMatches;
-use egui::Ui;
-use glam::{Quat, Vec3};
+use glam::Vec4;
 use starlight::prelude::*;
 use std::path::PathBuf;
 use std::process::exit;
 
-struct Viewport {
-    camera: Camera,
-}
+fn star_editor(ctx: &egui::CtxRef, star: &mut Star) {
+    egui::Window::new("Star Editor")
+        .collapsible(true)
+        .show(ctx, |ui| {
+            ui.horizontal(|ui| {
+                ui.vertical(|ui| {
+                    ui.strong("Granules");
+                    ui.label("Scale");
+                    ui.add(
+                        egui::DragValue::new(&mut star.granule_scale).clamp_range(0.0f32..=1000.0),
+                    );
+                    ui.label("Lacunarity");
+                    ui.add(
+                        egui::DragValue::new(&mut star.granule_lacunariy)
+                            .clamp_range(0.0f32..=1000.0),
+                    );
+                    ui.label("Frequency");
+                    ui.add(
+                        egui::DragValue::new(&mut star.granule_freqency)
+                            .clamp_range(0.0f32..=1.0)
+                            .speed(0.1),
+                    );
+                    ui.label("Octaves");
+                    ui.add(
+                        egui::DragValue::new(&mut star.granule_octaves).clamp_range(1.0f32..=10.0),
+                    );
+                });
 
-impl Viewport {
-    fn new(render: RenderCtxRef) -> Self {
-        let mut camera = Camera::new(render.clone(), wgpu::TextureFormat::Rgba8UnormSrgb, 1, 1);
-        camera.set_fovy(3.14 / 4.0);
-        camera.set_near(0.001);
+                ui.vertical(|ui| {
+                    ui.strong("Sunspots");
+                    ui.label("Scale");
+                    ui.add(
+                        egui::DragValue::new(&mut star.sunspots_scale).clamp_range(0.0f32..=1000.0),
+                    );
+                    ui.label("Offset");
+                    ui.add(
+                        egui::DragValue::new(&mut star.sunspots_offset).clamp_range(0.0f32..=1.0),
+                    );
+                    ui.label("Frequency");
+                    ui.add(
+                        egui::DragValue::new(&mut star.sunspots_frequency)
+                            .clamp_range(0.0f32..=1.0)
+                            .speed(0.001),
+                    );
+                    ui.label("Radius");
+                    ui.add(
+                        egui::DragValue::new(&mut star.sunspots_radius)
+                            .clamp_range(0.0f32..=1000.0),
+                    );
+                });
+            });
 
-        Self { camera }
-    }
+            let mut color = egui::Color32::from_rgba_premultiplied(
+                (255.0 * star.color[0]) as u8,
+                (255.0 * star.color[1]) as u8,
+                (255.0 * star.color[2]) as u8,
+                (255.0 * star.color[3]) as u8,
+            );
 
-    fn resize(&mut self, width: u32, height: u32) -> ImageId {
-        self.camera.resize(width, height);
-        self.camera.image()
-    }
-}
+            ui.strong("Color");
+            egui::color_picker::color_picker_color32(
+                ui,
+                &mut color,
+                egui::color_picker::Alpha::Opaque,
+            );
 
-impl egui::Widget for &mut Viewport {
-    fn ui(self, ui: &mut Ui) -> egui::Response {
-        let desired_size = ui.available_size();
-
-        let (rect, response) = ui.allocate_exact_size(
-            desired_size,
-            egui::Sense {
-                click: true,
-                drag: true,
-                focusable: true,
-            },
-        );
-
-        if response.is_pointer_button_down_on() {
-            response.request_focus();
-        }
-
-        if ui.is_rect_visible(rect) {
-            let size = rect.size() * ui.ctx().pixels_per_point();
-            let id = self.resize(size[0] as u32, size[1] as u32);
-            // Render image
-            let mut mesh = epaint::Mesh::with_texture(id.to_egui());
-            let uv = epaint::Rect::from_x_y_ranges(0.0..=1.0, 0.0..=1.0);
-            let tint = epaint::Color32::WHITE;
-            mesh.add_rect_with_uv(rect, uv, tint);
-            ui.painter().add(egui::Shape::Mesh(mesh));
-        }
-
-        // **********************
-        // Camera Controller ****
-        // **********************
-        let input = ui.input();
-
-        const MOVE_SPEED: f32 = 1.0;
-        const ROT_ANGLE: f32 = 3.141592;
-        let delta_time = input.unstable_dt;
-
-        if response.has_focus() {
-            if input.key_down(egui::Key::W) {
-                let translate = Vec3::Z * MOVE_SPEED * delta_time;
-                let local = self.camera.rotation().mul_vec3(translate);
-                self.camera.translate(local);
-            }
-
-            if input.key_down(egui::Key::S) {
-                let translate = -Vec3::Z * MOVE_SPEED * delta_time;
-                let local = self.camera.rotation().mul_vec3(translate);
-                self.camera.translate(local);
-            }
-
-            if input.key_down(egui::Key::A) {
-                let translate = -Vec3::X * MOVE_SPEED * delta_time;
-                let local = self.camera.rotation().mul_vec3(translate);
-                self.camera.translate(local);
-            }
-
-            if input.key_down(egui::Key::D) {
-                let translate = Vec3::X * MOVE_SPEED * delta_time;
-                let local = self.camera.rotation().mul_vec3(translate);
-                self.camera.translate(local);
-            }
-
-            if input.key_down(egui::Key::Q) {
-                let rotation = Quat::from_rotation_z(1.0 / 2.0 * -ROT_ANGLE * delta_time);
-                self.camera.rotate(rotation);
-            }
-
-            if input.key_down(egui::Key::E) {
-                let rotation = Quat::from_rotation_z(1.0 / 2.0 * ROT_ANGLE * delta_time);
-                self.camera.rotate(rotation);
-            }
-        }
-
-        if response.dragged() {
-            let delta = response.drag_delta();
-            let xrot = Quat::from_rotation_x(1.0 / 10.0 * ROT_ANGLE * delta_time * delta.y);
-            let yrot = Quat::from_rotation_y(1.0 / 10.0 * ROT_ANGLE * delta_time * delta.x);
-
-            self.camera.rotate(xrot);
-            self.camera.rotate(yrot);
-        }
-
-        response
-    }
+            star.color[0] = color[0] as f32 / 255 as f32;
+            star.color[1] = color[1] as f32 / 255 as f32;
+            star.color[2] = color[2] as f32 / 255 as f32;
+            star.color[3] = color[3] as f32 / 255 as f32;
+        });
 }
 
 pub fn open(matches: &ArgMatches) {
@@ -156,7 +124,20 @@ pub fn open(matches: &ArgMatches) {
     // Physics Entities
     let mut universe = World::new();
 
-    universe.spawn((Transform::from_xyz(0.0, 0.0, 10.0), Star {}));
+    let star = universe.spawn((
+        Transform::from_xyz(0.0, 0.0, 10.0),
+        Star {
+            granule_scale: 20.0,
+            granule_lacunariy: 40.0,
+            granule_freqency: 0.5,
+            granule_octaves: 3.0,
+            color: Vec4::new(1.0, 1.0, 1.0, 1.0),
+            sunspots_scale: 2.0,
+            sunspots_offset: 0.3,
+            sunspots_frequency: 0.001,
+            sunspots_radius: 1.0,
+        },
+    ));
 
     let mut universe_renderer =
         UniverseRenderer::new(render.clone(), wgpu::TextureFormat::Rgba8UnormSrgb);
@@ -174,19 +155,22 @@ pub fn open(matches: &ArgMatches) {
                 // ui.menu_button("File", |_ui| {});
                 // ui.menu_button("Windows", |_ui| {});
                 // ui.menu_button("About", |_ui| {});
-                ui.horizontal(|ui| {
-                    if ui.button("🏠").clicked() {}
-                    if ui.button("🔍").clicked() {}
-                    if ui.button("↔").clicked() {}
-                });
-                ui.separator();
+                // ui.horizontal(|ui| {
+                //     if ui.button("🏠").clicked() {}
+                //     if ui.button("🔍").clicked() {}
+                //     if ui.button("↔").clicked() {}
+                // });
+                // ui.separator();
                 ui.add(&mut viewport);
             });
+
+            star_editor(&ctx, &mut universe.get_mut::<Star>(star).unwrap());
+
             // **********************
             // MAIN VIEWPORT ********
             // **********************
 
-            universe_renderer.render(&universe, &viewport.camera);
+            universe_renderer.render(&universe, viewport.camera());
 
             AppState::Run
         }
