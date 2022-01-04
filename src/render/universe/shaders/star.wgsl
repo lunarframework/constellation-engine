@@ -91,9 +91,9 @@ fn noise(
 
         i = i + 1.0;
 
-        total = total + amplitude * (simplex_noise_3d(pos) - 0.5);
+        total = total + amplitude * simplex_noise_3d(pos);
         pos = pos * lacunarity;
-        amplitude = amplitude *  gain;
+        amplitude = amplitude * gain;
     }
     
     return total;
@@ -108,16 +108,18 @@ struct VertexInput {
     [[location(4)]] transform_matrix_3: vec4<f32>;
 
     [[location(5)]] color: vec4<f32>;
-    [[location(6)]] granules: vec4<f32>;
-    [[location(7)]] sunspots: vec4<f32>;
+    [[location(6)]] shifted_color: vec4<f32>;
+    [[location(7)]] granules: vec4<f32>;
+    [[location(8)]] sunspots: vec4<f32>;
 };
 
 struct VertexOutput {
     [[location(0)]] vert_pos: vec3<f32>;
     [[location(1)]] to_camera_vec: vec3<f32>;
     [[location(2)]] color: vec4<f32>;
-    [[location(3)]] granules: vec4<f32>;
-    [[location(4)]] sunspots: vec4<f32>;
+    [[location(3)]] shifted_color: vec4<f32>;
+    [[location(4)]] granules: vec4<f32>;
+    [[location(5)]] sunspots: vec4<f32>;
     [[builtin(position)]] clip_pos: vec4<f32>;
 };
 
@@ -148,6 +150,7 @@ fn vs_main(
     out.clip_pos = env.proj_view * world_pos;
     out.to_camera_vec = env.camera_pos.xyz - world_pos.xyz;
     out.color = in.color;
+    out.shifted_color = in.shifted_color;
     out.granules = in.granules;
     out.sunspots = in.sunspots;
 
@@ -176,18 +179,20 @@ fn fs_main(in: VertexOutput) -> [[location(0)]] vec4<f32> {
     let offset = in.sunspots.y;
     let frequency = in.sunspots.z;
     let radius = in.sunspots.w;
-    let t1 = simplex_noise_3d(in.vert_pos * frequency) - offset;
-    let t2 = simplex_noise_3d((in.vert_pos + radius) * frequency) - offset;
+    let t1 = simplex_noise_3d(in.vert_pos * radius * frequency) - offset;
+    let t2 = simplex_noise_3d((in.vert_pos + 1.0) * radius * frequency) - offset;
     let ss = (max(t1, 0.0) * max(t2, 0.0)) * scale;
     let total = n - ss;
-
-    return vec4<f32>(vec3<f32>(total * in.color.xyz), 1.0);
 
 	// //Color
 	// float u = (starTemperature - 800.0)/29200.0f;
 	// vec4 starColour = texture(starTemperatureMap,vec2(u,1));
 
 	// vec3 shiftedColour = useColourShift ? getTempColorShift(starTemperature) : vec3(0.0,0.0,0.0);
+
+    let theta = 1.0 - dot(normalize(in.to_camera_vec), in.vert_pos);
+
+    return vec4<f32>(vec3<f32>(in.color.xyz * total + in.shifted_color.xyz * theta), 1.0);
 
 	// //float theta = dot(normalize(toCameraVector),pass_Position);
 	// //out_Colour =  vec4(vec3(starColour*total) + vec3(shiftedColour*theta),1.0);

@@ -79,6 +79,25 @@ fn star_editor(ctx: &egui::CtxRef, star: &mut Star) {
             star.color[1] = color[1] as f32 / 255 as f32;
             star.color[2] = color[2] as f32 / 255 as f32;
             star.color[3] = color[3] as f32 / 255 as f32;
+
+            let mut shifted_color = egui::Color32::from_rgba_premultiplied(
+                (255.0 * star.shifted_color[0]) as u8,
+                (255.0 * star.shifted_color[1]) as u8,
+                (255.0 * star.shifted_color[2]) as u8,
+                (255.0 * star.shifted_color[3]) as u8,
+            );
+
+            ui.strong("Shifted Color");
+            egui::color_picker::color_picker_color32(
+                ui,
+                &mut shifted_color,
+                egui::color_picker::Alpha::Opaque,
+            );
+
+            star.shifted_color[0] = shifted_color[0] as f32 / 255 as f32;
+            star.shifted_color[1] = shifted_color[1] as f32 / 255 as f32;
+            star.shifted_color[2] = shifted_color[2] as f32 / 255 as f32;
+            star.shifted_color[3] = shifted_color[3] as f32 / 255 as f32;
         });
 }
 
@@ -132,6 +151,7 @@ pub fn open(matches: &ArgMatches) {
             granule_freqency: 0.5,
             granule_octaves: 3.0,
             color: Vec4::new(1.0, 1.0, 1.0, 1.0),
+            shifted_color: Vec4::new(0.0, 0.0, 0.0, 1.0),
             sunspots_scale: 2.0,
             sunspots_offset: 0.3,
             sunspots_frequency: 0.001,

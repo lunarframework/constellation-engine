@@ -7,19 +7,24 @@ use wgpu::util::DeviceExt;
 
 pub struct StarPipeline {
     render: RenderCtxRef,
-    pipeline: wgpu::RenderPipeline,
+    // HD Rendering
+    pipeline_hd: wgpu::RenderPipeline,
+    env_bind_group_hd: wgpu::BindGroup,
+    env_buffer_hd: wgpu::Buffer,
+    env_data_hd: EnvBufferHd,
+    // pipeline: wgpu::RenderPipeline,
 
-    env_bind_group: wgpu::BindGroup,
-    env_buffer: wgpu::Buffer,
-    env_data: EnvBuffer,
+    // env_bind_group: wgpu::BindGroup,
+    // env_buffer: wgpu::Buffer,
+    // env_data: EnvBuffer,
 
-    index_count: u32,
-    vertex_buffer: wgpu::Buffer,
-    index_buffer: wgpu::Buffer,
+    // index_count: u32,
+    // vertex_buffer: wgpu::Buffer,
+    // index_buffer: wgpu::Buffer,
 
-    instance_buffer_size: u64,
-    instance_buffer: wgpu::Buffer,
-    instance_data: Vec<InstanceBuffer>,
+    // instance_buffer_size: u64,
+    // instance_buffer: wgpu::Buffer,
+    // instance_data: Vec<InstanceBuffer>,
 }
 
 impl StarPipeline {
@@ -28,25 +33,145 @@ impl StarPipeline {
         output_format: wgpu::TextureFormat,
         depth_format: wgpu::TextureFormat,
     ) -> Self {
-        let module = render
-            .device()
-            .create_shader_module(&wgpu::include_wgsl!("shaders/star.wgsl"));
+        // let module = render
+        //     .device()
+        //     .create_shader_module(&wgpu::include_wgsl!("shaders/star.wgsl"));
 
-        let env_buffer = render.device().create_buffer(&wgpu::BufferDescriptor {
+        // let env_buffer = render.device().create_buffer(&wgpu::BufferDescriptor {
+        //     label: Some("Star Env Buffer"),
+        //     size: std::mem::size_of::<EnvBuffer>() as u64,
+        //     usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::UNIFORM,
+        //     mapped_at_creation: false,
+        // });
+
+        // let env_bind_group_layout =
+        //     render
+        //         .device()
+        //         .create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+        //             label: Some("Star Env Bind Group Layout"),
+        //             entries: &[wgpu::BindGroupLayoutEntry {
+        //                 binding: 0,
+        //                 visibility: wgpu::ShaderStages::VERTEX,
+        //                 ty: wgpu::BindingType::Buffer {
+        //                     has_dynamic_offset: false,
+        //                     min_binding_size: None,
+        //                     ty: wgpu::BufferBindingType::Uniform,
+        //                 },
+        //                 count: None,
+        //             }],
+        //         });
+
+        // let env_bind_group = render
+        //     .device()
+        //     .create_bind_group(&wgpu::BindGroupDescriptor {
+        //         label: Some("Star Env Bind Group"),
+        //         layout: &env_bind_group_layout,
+        //         entries: &[wgpu::BindGroupEntry {
+        //             binding: 0,
+        //             resource: wgpu::BindingResource::Buffer(wgpu::BufferBinding {
+        //                 buffer: &env_buffer,
+        //                 offset: 0,
+        //                 size: None,
+        //             }),
+        //         }],
+        //     });
+
+        // let pipeline_layout =
+        //     render
+        //         .device()
+        //         .create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+        //             label: Some("star_pipeline_layout"),
+        //             bind_group_layouts: &[&env_bind_group_layout],
+        //             push_constant_ranges: &[],
+        //         });
+
+        // let pipeline = render
+        //     .device()
+        //     .create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+        //         label: Some("star_pipeline"),
+        //         layout: Some(&pipeline_layout),
+        //         vertex: wgpu::VertexState {
+        //             entry_point: "vs_main",
+        //             module: &module,
+        //             buffers: &[
+        //                 wgpu::VertexBufferLayout {
+        //                     array_stride: 4 * 3,
+        //                     step_mode: wgpu::VertexStepMode::Vertex,
+        //                     // 0: vec3 position
+        //                     attributes: &wgpu::vertex_attr_array![0 => Float32x3],
+        //                 },
+        //                 wgpu::VertexBufferLayout {
+        //                     array_stride: 4 * 4 * 6,
+        //                     step_mode: wgpu::VertexStepMode::Instance,
+        //                     // 1-4: mat4x4 transform
+        //                     // 5: color
+        //                     // 6: granule settings
+        //                     attributes: &wgpu::vertex_attr_array![1 => Float32x4, 2 => Float32x4, 3 => Float32x4, 4 => Float32x4, 5 => Float32x4, 6 => Float32x4, 7 => Float32x4, 8 => Float32x4]
+        //                 },
+        //             ],
+        //         },
+        //         primitive: wgpu::PrimitiveState {
+        //             topology: wgpu::PrimitiveTopology::TriangleList,
+        //             clamp_depth: false,
+        //             conservative: false,
+        //             cull_mode: Some(wgpu::Face::Back),
+        //             front_face: wgpu::FrontFace::Cw,
+        //             polygon_mode: wgpu::PolygonMode::Fill,
+        //             strip_index_format: None,
+        //         },
+        //         depth_stencil: Some(wgpu::DepthStencilState {
+        //             format: depth_format,
+        //             depth_write_enabled: true,
+        //             depth_compare: wgpu::CompareFunction::Less, // 1.
+        //             stencil: wgpu::StencilState::default(),     // 2.
+        //             bias: wgpu::DepthBiasState::default(),
+        //         }),
+        //         multisample: wgpu::MultisampleState {
+        //             alpha_to_coverage_enabled: false,
+        //             count: 1,
+        //             mask: !0,
+        //         },
+        //         fragment: Some(wgpu::FragmentState {
+        //             module: &module,
+        //             entry_point: "fs_main",
+        //             targets: &[wgpu::ColorTargetState {
+        //                 format: output_format,
+        //                 blend: Some(wgpu::BlendState {
+        //                     color: wgpu::BlendComponent {
+        //                         src_factor: wgpu::BlendFactor::One,
+        //                         dst_factor: wgpu::BlendFactor::OneMinusSrcAlpha,
+        //                         operation: wgpu::BlendOperation::Add,
+        //                     },
+        //                     alpha: wgpu::BlendComponent {
+        //                         src_factor: wgpu::BlendFactor::OneMinusDstAlpha,
+        //                         dst_factor: wgpu::BlendFactor::One,
+        //                         operation: wgpu::BlendOperation::Add,
+        //                     },
+        //                 }),
+        //                 write_mask: wgpu::ColorWrites::ALL,
+        //             }],
+        //         }),
+        //     });
+
+        let module_hd = render
+            .device()
+            .create_shader_module(&wgpu::include_wgsl!("shaders/star_hd.wgsl"));
+
+        let env_buffer_hd = render.device().create_buffer(&wgpu::BufferDescriptor {
             label: Some("Star Env Buffer"),
-            size: std::mem::size_of::<EnvBuffer>() as u64,
+            size: std::mem::size_of::<EnvBufferHd>() as u64,
             usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::UNIFORM,
             mapped_at_creation: false,
         });
 
-        let env_bind_group_layout =
+        let env_bind_group_layout_hd =
             render
                 .device()
                 .create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
                     label: Some("Star Env Bind Group Layout"),
                     entries: &[wgpu::BindGroupLayoutEntry {
                         binding: 0,
-                        visibility: wgpu::ShaderStages::VERTEX,
+                        visibility: wgpu::ShaderStages::FRAGMENT,
                         ty: wgpu::BindingType::Buffer {
                             has_dynamic_offset: false,
                             min_binding_size: None,
@@ -56,60 +181,45 @@ impl StarPipeline {
                     }],
                 });
 
-        let env_bind_group = render
+        let env_bind_group_hd = render
             .device()
             .create_bind_group(&wgpu::BindGroupDescriptor {
                 label: Some("Star Env Bind Group"),
-                layout: &env_bind_group_layout,
+                layout: &env_bind_group_layout_hd,
                 entries: &[wgpu::BindGroupEntry {
                     binding: 0,
                     resource: wgpu::BindingResource::Buffer(wgpu::BufferBinding {
-                        buffer: &env_buffer,
+                        buffer: &env_buffer_hd,
                         offset: 0,
                         size: None,
                     }),
                 }],
             });
 
-        let pipeline_layout =
+        let pipeline_hd_layout =
             render
                 .device()
                 .create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-                    label: Some("star_pipeline_layout"),
-                    bind_group_layouts: &[&env_bind_group_layout],
+                    label: Some("star_hd_pipeline_layout"),
+                    bind_group_layouts: &[&env_bind_group_layout_hd],
                     push_constant_ranges: &[],
                 });
 
-        let pipeline = render
+        let pipeline_hd = render
             .device()
             .create_render_pipeline(&wgpu::RenderPipelineDescriptor {
-                label: Some("star_pipeline"),
-                layout: Some(&pipeline_layout),
+                label: Some("star_hd_pipeline"),
+                layout: Some(&pipeline_hd_layout),
                 vertex: wgpu::VertexState {
                     entry_point: "vs_main",
-                    module: &module,
-                    buffers: &[
-                        wgpu::VertexBufferLayout {
-                            array_stride: 4 * 3,
-                            step_mode: wgpu::VertexStepMode::Vertex,
-                            // 0: vec3 position
-                            attributes: &wgpu::vertex_attr_array![0 => Float32x3],
-                        },
-                        wgpu::VertexBufferLayout {
-                            array_stride: 4 * 4 * 6,
-                            step_mode: wgpu::VertexStepMode::Instance,
-                            // 1-4: mat4x4 transform
-                            // 5: color
-                            // 6: granule settings
-                            attributes: &wgpu::vertex_attr_array![1 => Float32x4, 2 => Float32x4, 3 => Float32x4, 4 => Float32x4, 5 => Float32x4, 6 => Float32x4, 7 => Float32x4]
-                        },
-                    ],
+                    module: &module_hd,
+                    buffers: &[],
                 },
                 primitive: wgpu::PrimitiveState {
                     topology: wgpu::PrimitiveTopology::TriangleList,
                     clamp_depth: false,
                     conservative: false,
-                    cull_mode: Some(wgpu::Face::Back),
+                    cull_mode: None,
                     front_face: wgpu::FrontFace::Cw,
                     polygon_mode: wgpu::PolygonMode::Fill,
                     strip_index_format: None,
@@ -127,7 +237,7 @@ impl StarPipeline {
                     mask: !0,
                 },
                 fragment: Some(wgpu::FragmentState {
-                    module: &module,
+                    module: &module_hd,
                     entry_point: "fs_main",
                     targets: &[wgpu::ColorTargetState {
                         format: output_format,
@@ -148,116 +258,134 @@ impl StarPipeline {
                 }),
             });
 
-        let mesh = CubeSphere::new(10);
+        // let mesh = CubeSphere::new(10);
 
-        let index_count = mesh.indices().len() as u32;
+        // let index_count = mesh.indices().len() as u32;
 
-        let vertex_buffer = render
-            .device()
-            .create_buffer_init(&wgpu::util::BufferInitDescriptor {
-                label: None,
-                contents: bytemuck::cast_slice(mesh.vertices()),
-                usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
-            });
+        // let vertex_buffer = render
+        //     .device()
+        //     .create_buffer_init(&wgpu::util::BufferInitDescriptor {
+        //         label: None,
+        //         contents: bytemuck::cast_slice(mesh.vertices()),
+        //         usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
+        //     });
 
-        let index_buffer = render
-            .device()
-            .create_buffer_init(&wgpu::util::BufferInitDescriptor {
-                label: None,
-                contents: bytemuck::cast_slice(mesh.indices()),
-                usage: wgpu::BufferUsages::INDEX | wgpu::BufferUsages::COPY_DST,
-            });
+        // let index_buffer = render
+        //     .device()
+        //     .create_buffer_init(&wgpu::util::BufferInitDescriptor {
+        //         label: None,
+        //         contents: bytemuck::cast_slice(mesh.indices()),
+        //         usage: wgpu::BufferUsages::INDEX | wgpu::BufferUsages::COPY_DST,
+        //     });
 
-        let instance_buffer = render.device().create_buffer(&wgpu::BufferDescriptor {
-            label: Some("Star Env Buffer"),
-            size: 0,
-            usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::VERTEX,
-            mapped_at_creation: false,
-        });
+        // let instance_buffer = render.device().create_buffer(&wgpu::BufferDescriptor {
+        //     label: Some("Star Env Buffer"),
+        //     size: 0,
+        //     usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::VERTEX,
+        //     mapped_at_creation: false,
+        // });
 
         Self {
             render: render,
-            pipeline,
+            pipeline_hd,
+            env_bind_group_hd,
+            env_buffer_hd,
+            env_data_hd: EnvBufferHd::default(),
+            // pipeline,
 
-            env_bind_group,
-            env_buffer,
-            env_data: EnvBuffer::default(),
+            // env_bind_group,
+            // env_buffer,
+            // env_data: EnvBuffer::default(),
 
-            index_count,
-            vertex_buffer,
-            index_buffer,
+            // index_count,
+            // vertex_buffer,
+            // index_buffer,
 
-            instance_buffer_size: 0,
-            instance_buffer,
-            instance_data: Vec::new(),
+            // instance_buffer_size: 0,
+            // instance_buffer,
+            // instance_data: Vec::new(),
         }
     }
 
     pub fn update(&mut self, world: &World, camera: &Camera) {
-        // **********************
-        // Update Enviornment ***
-        // **********************
+        // // **********************
+        // // Update Enviornment ***
+        // // **********************
 
         let proj_view = camera.compute_proj_view_matrix();
-        self.env_data.proj_view = proj_view;
-        self.env_data.camera_pos = camera.position().extend(1.0);
-        self.env_data.anim_time = 0.0;
+        let proj = camera.compute_view_matrix();
+        self.env_data_hd.clip_to_world = proj_view.inverse();
+        self.env_data_hd.world_to_clip = proj;
+        self.env_data_hd.camera = camera.position().extend(camera.near());
 
         self.render.queue().write_buffer(
-            &self.env_buffer,
+            &self.env_buffer_hd,
             0,
-            bytemuck::cast_slice(&[self.env_data]),
+            bytemuck::cast_slice(&[self.env_data_hd]),
         );
 
-        // ***********************
-        // Update Instances ******
-        // ***********************
+        // let proj_view = camera.compute_proj_view_matrix();
+        // self.env_data.proj_view = proj_view;
+        // self.env_data.camera_pos = camera.position().extend(1.0);
+        // self.env_data.anim_time = 0.0;
 
-        let mut query = world.query::<(&Transform, &Star)>();
+        // self.render.queue().write_buffer(
+        //     &self.env_buffer,
+        //     0,
+        //     bytemuck::cast_slice(&[self.env_data]),
+        // );
 
-        let count = query.iter().count();
+        // // ***********************
+        // // Update Instances ******
+        // // ***********************
 
-        self.instance_data.clear();
-        self.instance_data.reserve(count);
+        // let mut query = world.query::<(&Transform, &Star)>();
 
-        for (_entity, (transform, star)) in query.iter() {
-            self.instance_data.push(InstanceBuffer {
-                transform: transform.compute_matrix(),
-                color: star.color,
-                ganules: Vec4::new(
-                    star.granule_scale,
-                    star.granule_lacunariy,
-                    star.granule_freqency,
-                    star.granule_octaves,
-                ),
-                sunspots: Vec4::new(
-                    star.sunspots_scale,
-                    star.sunspots_offset,
-                    star.sunspots_frequency,
-                    star.sunspots_radius,
-                ),
-            });
-        }
+        // let count = query.iter().count();
 
-        if (count * std::mem::size_of::<InstanceBuffer>()) as u64 > self.instance_buffer_size {
-            self.instance_buffer_size = (count * std::mem::size_of::<InstanceBuffer>()) as u64;
-            self.instance_buffer = self.render.device().create_buffer(&wgpu::BufferDescriptor {
-                label: Some("Star Env Buffer"),
-                size: self.instance_buffer_size,
-                usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::VERTEX,
-                mapped_at_creation: false,
-            });
-        }
+        // self.instance_data.clear();
+        // self.instance_data.reserve(count);
 
-        self.render.queue().write_buffer(
-            &self.instance_buffer,
-            0,
-            bytemuck::cast_slice(self.instance_data.as_slice()),
-        );
+        // for (_entity, (transform, star)) in query.iter() {
+        //     self.instance_data.push(InstanceBuffer {
+        //         transform: transform.compute_matrix(),
+        //         color: star.color,
+        //         shifted_color: star.shifted_color,
+        //         ganules: Vec4::new(
+        //             star.granule_scale,
+        //             star.granule_lacunariy,
+        //             star.granule_freqency,
+        //             star.granule_octaves,
+        //         ),
+        //         sunspots: Vec4::new(
+        //             star.sunspots_scale,
+        //             star.sunspots_offset,
+        //             star.sunspots_frequency,
+        //             star.sunspots_radius,
+        //         ),
+        //     });
+        // }
+
+        // if (count * std::mem::size_of::<InstanceBuffer>()) as u64 > self.instance_buffer_size {
+        //     self.instance_buffer_size = (count * std::mem::size_of::<InstanceBuffer>()) as u64;
+        //     self.instance_buffer = self.render.device().create_buffer(&wgpu::BufferDescriptor {
+        //         label: Some("Star Env Buffer"),
+        //         size: self.instance_buffer_size,
+        //         usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::VERTEX,
+        //         mapped_at_creation: false,
+        //     });
+        // }
+
+        // self.render.queue().write_buffer(
+        //     &self.instance_buffer,
+        //     0,
+        //     bytemuck::cast_slice(self.instance_data.as_slice()),
+        // );
     }
 
     pub fn render<'s, 'r>(&'s self, render_pass: &'r mut wgpu::RenderPass<'s>, camera: &Camera) {
-        render_pass.set_pipeline(&self.pipeline);
+        // HD Rendering
+        render_pass.set_pipeline(&self.pipeline_hd);
         render_pass.set_viewport(
             0.0,
             0.0,
@@ -267,16 +395,42 @@ impl StarPipeline {
             1.0,
         );
         render_pass.set_scissor_rect(0, 0, camera.width(), camera.height());
-        render_pass.set_bind_group(0, &self.env_bind_group, &[]);
-        render_pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
-        render_pass.set_vertex_buffer(1, self.instance_buffer.slice(..));
-        render_pass.set_index_buffer(self.index_buffer.slice(..), wgpu::IndexFormat::Uint32);
-        render_pass.draw_indexed(0..self.index_count, 0, 0..self.instance_data.len() as u32);
+        render_pass.set_bind_group(0, &self.env_bind_group_hd, &[]);
+        render_pass.draw(0..6, 0..1);
+        // render_pass.set_pipeline(&self.pipeline);
+        // render_pass.set_viewport(
+        //     0.0,
+        //     0.0,
+        //     camera.width() as f32,
+        //     camera.height() as f32,
+        //     0.0,
+        //     1.0,
+        // );
+        // render_pass.set_scissor_rect(0, 0, camera.width(), camera.height());
+        // render_pass.set_bind_group(0, &self.env_bind_group, &[]);
+        // render_pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
+        // render_pass.set_vertex_buffer(1, self.instance_buffer.slice(..));
+        // render_pass.set_index_buffer(self.index_buffer.slice(..), wgpu::IndexFormat::Uint32);
+        // render_pass.draw_indexed(0..self.index_count, 0, 0..self.instance_data.len() as u32);
     }
 }
 
 use bytemuck::{Pod, Zeroable};
 use glam::{Mat4, Vec4};
+
+#[repr(C)]
+#[derive(Copy, Clone, Default)]
+struct EnvBufferHd {
+    clip_to_world: Mat4,
+    world_to_clip: Mat4,
+    /// x, y, z = position
+    /// w = near plane
+    camera: Vec4,
+}
+
+unsafe impl Pod for EnvBufferHd {}
+
+unsafe impl Zeroable for EnvBufferHd {}
 
 #[repr(C)]
 #[derive(Copy, Clone, Default)]
@@ -295,6 +449,7 @@ unsafe impl Zeroable for EnvBuffer {}
 struct InstanceBuffer {
     transform: Mat4,
     color: Vec4,
+    shifted_color: Vec4,
     ganules: Vec4,
     sunspots: Vec4,
 }

@@ -7,6 +7,7 @@ pub struct Star {
     pub granule_freqency: f32,
     pub granule_octaves: f32,
     pub color: Vec4,
+    pub shifted_color: Vec4,
 
     pub sunspots_scale: f32,
     pub sunspots_offset: f32,
