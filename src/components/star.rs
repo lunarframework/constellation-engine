@@ -1,16 +1,15 @@
-use glam::Vec4;
+use glam::{Vec3, Vec4};
 
 pub struct Star {
-    // Apearance
-    pub granule_scale: f32,
-    pub granule_lacunariy: f32,
-    pub granule_freqency: f32,
-    pub granule_octaves: f32,
     pub color: Vec4,
-    pub shifted_color: Vec4,
+    pub shift: Vec4,
+    pub radius: f32,
 
-    pub sunspots_scale: f32,
-    pub sunspots_offset: f32,
+    pub granule_lacunarity: f32,
+    pub granule_gain: f32,
+    pub granule_octaves: f32,
+
+    pub sunspot_sharpness: f32,
+    pub sunspots_cutoff: f32,
     pub sunspots_frequency: f32,
-    pub sunspots_radius: f32,
 }

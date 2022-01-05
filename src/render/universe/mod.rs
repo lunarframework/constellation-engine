@@ -48,8 +48,8 @@ impl UniverseRenderer {
         }
     }
 
-    pub fn render(&mut self, world: &World, camera: &Camera) {
-        self.star_pipeline.update(world, camera);
+    pub fn render(&mut self, world: &World, camera: &Camera, dt: f32) {
+        self.star_pipeline.update(world, camera, dt);
 
         if camera.width() != self.depth_width || camera.height() != self.depth_height {
             self.depth_width = camera.width();

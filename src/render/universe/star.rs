@@ -12,6 +12,10 @@ pub struct StarPipeline {
     env_bind_group_hd: wgpu::BindGroup,
     env_buffer_hd: wgpu::Buffer,
     env_data_hd: EnvBufferHd,
+    star_bind_group_layout_hd: wgpu::BindGroupLayout,
+    star_bind_groups_hd: Vec<wgpu::BindGroup>,
+    star_data_hd: Vec<StarBufferHd>,
+    star_buffer_hd: wgpu::Buffer,
     // pipeline: wgpu::RenderPipeline,
 
     // env_bind_group: wgpu::BindGroup,
@@ -196,12 +200,36 @@ impl StarPipeline {
                 }],
             });
 
+        let star_buffer_hd = render.device().create_buffer(&wgpu::BufferDescriptor {
+            label: Some("Star HD Data Buffer"),
+            size: 0,
+            usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::UNIFORM,
+            mapped_at_creation: false,
+        });
+
+        let star_bind_group_layout_hd =
+            render
+                .device()
+                .create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+                    label: Some("Star Env Bind Group Layout"),
+                    entries: &[wgpu::BindGroupLayoutEntry {
+                        binding: 0,
+                        visibility: wgpu::ShaderStages::FRAGMENT,
+                        ty: wgpu::BindingType::Buffer {
+                            has_dynamic_offset: false,
+                            min_binding_size: None,
+                            ty: wgpu::BufferBindingType::Uniform,
+                        },
+                        count: None,
+                    }],
+                });
+
         let pipeline_hd_layout =
             render
                 .device()
                 .create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
                     label: Some("star_hd_pipeline_layout"),
-                    bind_group_layouts: &[&env_bind_group_layout_hd],
+                    bind_group_layouts: &[&env_bind_group_layout_hd, &star_bind_group_layout_hd],
                     push_constant_ranges: &[],
                 });
 
@@ -291,6 +319,10 @@ impl StarPipeline {
             env_bind_group_hd,
             env_buffer_hd,
             env_data_hd: EnvBufferHd::default(),
+            star_buffer_hd,
+            star_bind_group_layout_hd,
+            star_bind_groups_hd: Vec::new(),
+            star_data_hd: Vec::new(),
             // pipeline,
 
             // env_bind_group,
@@ -307,21 +339,91 @@ impl StarPipeline {
         }
     }
 
-    pub fn update(&mut self, world: &World, camera: &Camera) {
-        // // **********************
-        // // Update Enviornment ***
-        // // **********************
+    pub fn update(&mut self, world: &World, camera: &Camera, dt: f32) {
+        // **********************
+        // Update Enviornment ***
+        // **********************
 
         let proj_view = camera.compute_proj_view_matrix();
-        let proj = camera.compute_view_matrix();
         self.env_data_hd.clip_to_world = proj_view.inverse();
-        self.env_data_hd.world_to_clip = proj;
+        self.env_data_hd.world_to_clip = proj_view;
         self.env_data_hd.camera = camera.position().extend(camera.near());
+        self.env_data_hd.time = 0.0;
 
         self.render.queue().write_buffer(
             &self.env_buffer_hd,
             0,
             bytemuck::cast_slice(&[self.env_data_hd]),
+        );
+
+        // *****************
+        // Star ************
+        // *****************
+
+        let mut query = world.query::<(&Transform, &Star)>();
+
+        let count = query.iter().count();
+
+        self.star_data_hd.clear();
+        self.star_bind_groups_hd.clear();
+        self.star_data_hd.reserve(count);
+        self.star_bind_groups_hd.reserve(count);
+
+        for (_entity, (transform, star)) in query.iter() {
+            self.star_data_hd.push(StarBufferHd {
+                pos: transform.translation.extend(star.radius),
+                color: star.color,
+                shift: star.shift,
+                granule_lacunarity: star.granule_lacunarity,
+                granule_gain: star.granule_gain,
+                granule_octaves: star.granule_octaves,
+                sunspot_sharpness: star.sunspot_sharpness,
+                sunspot_cutoff: star.sunspots_cutoff,
+                sunspot_frequency: star.sunspots_frequency,
+            });
+        }
+
+        if count > self.star_bind_groups_hd.len() {
+            use std::alloc::Layout;
+            use std::num::NonZeroU64;
+
+            let layout = Layout::new::<StarBufferHd>().pad_to_align();
+
+            self.star_buffer_hd = self.render.device().create_buffer(&wgpu::BufferDescriptor {
+                label: Some("Star HD Data Buffer"),
+                size: (layout.size() * count) as u64,
+                usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::UNIFORM,
+                mapped_at_creation: false,
+            });
+
+            self.star_bind_groups_hd.clear();
+            self.star_bind_groups_hd.reserve(count);
+
+            for i in 0..count {
+                self.star_bind_groups_hd
+                    .push(
+                        self.render
+                            .device()
+                            .create_bind_group(&wgpu::BindGroupDescriptor {
+                                label: Some("Star Bind Group"),
+                                layout: &self.star_bind_group_layout_hd,
+                                entries: &[wgpu::BindGroupEntry {
+                                    binding: 0,
+                                    resource: wgpu::BindingResource::Buffer(wgpu::BufferBinding {
+                                        buffer: &self.star_buffer_hd,
+                                        offset: (layout.size() * i) as u64,
+                                        size: Some(NonZeroU64::new(layout.size() as u64).unwrap()),
+                                    }),
+                                }],
+                            }),
+                    );
+            }
+        }
+
+        self.render.queue().write_buffer(
+            &self.star_buffer_hd,
+            0,
+            bytemuck::cast_slice(self.star_data_hd.as_slice()),
         );
 
         // let proj_view = camera.compute_proj_view_matrix();
@@ -396,7 +498,12 @@ impl StarPipeline {
         );
         render_pass.set_scissor_rect(0, 0, camera.width(), camera.height());
         render_pass.set_bind_group(0, &self.env_bind_group_hd, &[]);
-        render_pass.draw(0..6, 0..1);
+
+        for bind_group in self.star_bind_groups_hd.iter() {
+            render_pass.set_bind_group(1, bind_group, &[]);
+            render_pass.draw(0..6, 0..1);
+        }
+
         // render_pass.set_pipeline(&self.pipeline);
         // render_pass.set_viewport(
         //     0.0,
@@ -426,6 +533,7 @@ struct EnvBufferHd {
     /// x, y, z = position
     /// w = near plane
     camera: Vec4,
+    time: f32,
 }
 
 unsafe impl Pod for EnvBufferHd {}
@@ -434,29 +542,47 @@ unsafe impl Zeroable for EnvBufferHd {}
 
 #[repr(C)]
 #[derive(Copy, Clone, Default)]
-struct EnvBuffer {
-    proj_view: Mat4,
-    camera_pos: Vec4,
-    anim_time: f32,
-}
-
-unsafe impl Pod for EnvBuffer {}
-
-unsafe impl Zeroable for EnvBuffer {}
-
-#[repr(C)]
-#[derive(Copy, Clone, Default)]
-struct InstanceBuffer {
-    transform: Mat4,
+struct StarBufferHd {
+    pos: Vec4,
     color: Vec4,
-    shifted_color: Vec4,
-    ganules: Vec4,
-    sunspots: Vec4,
+    shift: Vec4,
+    granule_lacunarity: f32,
+    granule_gain: f32,
+    granule_octaves: f32,
+    sunspot_sharpness: f32,
+    sunspot_cutoff: f32,
+    sunspot_frequency: f32,
 }
 
-unsafe impl Pod for InstanceBuffer {}
+unsafe impl Pod for StarBufferHd {}
 
-unsafe impl Zeroable for InstanceBuffer {}
+unsafe impl Zeroable for StarBufferHd {}
+
+// #[repr(C)]
+// #[derive(Copy, Clone, Default)]
+// struct EnvBuffer {
+//     proj_view: Mat4,
+//     camera_pos: Vec4,
+//     anim_time: f32,
+// }
+
+// unsafe impl Pod for EnvBuffer {}
+
+// unsafe impl Zeroable for EnvBuffer {}
+
+// #[repr(C)]
+// #[derive(Copy, Clone, Default)]
+// struct InstanceBuffer {
+//     transform: Mat4,
+//     color: Vec4,
+//     shifted_color: Vec4,
+//     ganules: Vec4,
+//     sunspots: Vec4,
+// }
+
+// unsafe impl Pod for InstanceBuffer {}
+
+// unsafe impl Zeroable for InstanceBuffer {}
 
 // // Needed since we can't use bytemuck for external types.
 // fn as_byte_slice<T>(slice: &[T]) -> &[u8] {

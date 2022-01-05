@@ -167,7 +167,7 @@ fn fs_main(in: VertexOutput) -> [[location(0)]] vec4<f32> {
     let frequency = in.granules.z;
     let octaves = in.granules.w;
 
-    let n = (noise(in.vert_pos, scale, lacunarity, frequency, octaves) + 1.0) + 0.5;
+    let n = (noise(in.vert_pos, scale, lacunarity, frequency, octaves) + 1.0) * 0.5;
 
     // let n = (noise(in.vert_pos * 20.0, 40.0, 0.5, 3) + 1.0) * 0.5;
 
