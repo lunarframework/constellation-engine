@@ -1,5 +1,6 @@
 use super::Camera;
 use super::RenderCtxRef;
+use super::UniverseRenderer;
 use crate::components::{Star, Transform};
 use crate::render::CubeSphere;
 use starlight::World;
@@ -32,11 +33,7 @@ pub struct StarPipeline {
 }
 
 impl StarPipeline {
-    pub fn new(
-        render: RenderCtxRef,
-        output_format: wgpu::TextureFormat,
-        depth_format: wgpu::TextureFormat,
-    ) -> Self {
+    pub fn new(render: RenderCtxRef) -> Self {
         // let module = render
         //     .device()
         //     .create_shader_module(&wgpu::include_wgsl!("shaders/star.wgsl"));
@@ -253,7 +250,7 @@ impl StarPipeline {
                     strip_index_format: None,
                 },
                 depth_stencil: Some(wgpu::DepthStencilState {
-                    format: depth_format,
+                    format: render.depth_format(),
                     depth_write_enabled: true,
                     depth_compare: wgpu::CompareFunction::Less, // 1.
                     stencil: wgpu::StencilState::default(),     // 2.
@@ -268,7 +265,7 @@ impl StarPipeline {
                     module: &module_hd,
                     entry_point: "fs_main",
                     targets: &[wgpu::ColorTargetState {
-                        format: output_format,
+                        format: render.hdr_format(),
                         blend: Some(wgpu::BlendState {
                             color: wgpu::BlendComponent {
                                 src_factor: wgpu::BlendFactor::One,

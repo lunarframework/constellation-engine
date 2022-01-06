@@ -8,7 +8,6 @@ pub struct Camera {
     target: wgpu::Texture,
     view: wgpu::TextureView,
     image: ImageId,
-    format: wgpu::TextureFormat,
 
     width: u32,
     height: u32,
@@ -22,21 +21,8 @@ pub struct Camera {
 }
 
 impl Camera {
-    pub fn new(render: RenderCtxRef, format: wgpu::TextureFormat, width: u32, height: u32) -> Self {
-        let target = render.device().create_texture(&wgpu::TextureDescriptor {
-            label: Some("Camera Render Texture"),
-            size: wgpu::Extent3d {
-                width: width,
-                height: height,
-                depth_or_array_layers: 1,
-            },
-            mip_level_count: 1,
-            dimension: wgpu::TextureDimension::D2,
-            sample_count: 1,
-            format,
-            usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::TEXTURE_BINDING,
-        });
-
+    pub fn new(render: RenderCtxRef, width: u32, height: u32) -> Self {
+        let target = render.create_ldr_attachment(width, height, 1, true);
         let view = target.create_view(&wgpu::TextureViewDescriptor::default());
 
         let image = render.register_image(&target, wgpu::FilterMode::Linear);
@@ -46,7 +32,6 @@ impl Camera {
             target,
             view,
             image,
-            format,
             width,
             height,
             position: Vec3::ZERO,
@@ -62,24 +47,8 @@ impl Camera {
         if (self.width != width || self.height != height) && (width > 0 && height > 0) {
             self.width = width;
             self.height = height;
-            self.target = self
-                .render
-                .device()
-                .create_texture(&wgpu::TextureDescriptor {
-                    label: Some("Camera Render Texture"),
-                    size: wgpu::Extent3d {
-                        width: self.width,
-                        height: self.height,
-                        depth_or_array_layers: 1,
-                    },
-                    mip_level_count: 1,
-                    dimension: wgpu::TextureDimension::D2,
-                    sample_count: 1,
-                    format: self.format,
-                    usage: wgpu::TextureUsages::RENDER_ATTACHMENT
-                        | wgpu::TextureUsages::TEXTURE_BINDING,
-                });
 
+            self.target = self.render.create_ldr_attachment(width, height, 1, true);
             self.view = self
                 .target
                 .create_view(&wgpu::TextureViewDescriptor::default());
@@ -118,10 +87,6 @@ impl Camera {
 
     pub fn image(&self) -> ImageId {
         self.image
-    }
-
-    pub fn format(&self) -> wgpu::TextureFormat {
-        self.format
     }
 
     pub fn width(&self) -> u32 {

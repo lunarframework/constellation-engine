@@ -12,7 +12,7 @@ pub struct Viewport {
 
 impl Viewport {
     pub fn new(render: RenderCtxRef) -> Self {
-        let mut camera = Camera::new(render.clone(), wgpu::TextureFormat::Rgba8UnormSrgb, 1, 1);
+        let mut camera = Camera::new(render.clone(), 1, 1);
         camera.set_fovy(3.14 / 4.0);
         camera.set_near(0.001);
 

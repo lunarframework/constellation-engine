@@ -40,6 +40,9 @@ pub struct RenderContext {
     device: Device,
     queue: Queue,
 
+    default_texture: wgpu::Texture,
+    default_view: wgpu::TextureView,
+
     image_bind_group_layout: wgpu::BindGroupLayout,
 
     next_image_id: AtomicU64,
@@ -101,11 +104,29 @@ impl RenderContext {
                     ],
                 });
 
+            let default_texture = device.create_texture(&wgpu::TextureDescriptor {
+                label: Some("Default Texture"),
+                dimension: wgpu::TextureDimension::D1,
+                format: wgpu::TextureFormat::R8Uint,
+                mip_level_count: 1,
+                sample_count: 1,
+                size: wgpu::Extent3d {
+                    width: 1,
+                    height: 1,
+                    depth_or_array_layers: 1,
+                },
+                usage: wgpu::TextureUsages::TEXTURE_BINDING,
+            });
+
+            let default_view = default_texture.create_view(&wgpu::TextureViewDescriptor::default());
+
             Self {
                 instance,
                 adapter,
                 device,
                 queue,
+                default_texture,
+                default_view,
                 image_bind_group_layout,
                 next_image_id: AtomicU64::new(0),
                 images: Mutex::new(HashMap::default()),
@@ -127,6 +148,111 @@ impl RenderContext {
 
     pub fn queue(&self) -> &Queue {
         &self.queue
+    }
+
+    pub fn default_texture(&self) -> wgpu::Texture {
+        self.device.create_texture(&wgpu::TextureDescriptor {
+            label: Some("Default Texture"),
+            dimension: wgpu::TextureDimension::D1,
+            format: wgpu::TextureFormat::R8Uint,
+            mip_level_count: 1,
+            sample_count: 1,
+            size: wgpu::Extent3d {
+                width: 1,
+                height: 1,
+                depth_or_array_layers: 1,
+            },
+            usage: wgpu::TextureUsages::TEXTURE_BINDING,
+        })
+    }
+
+    /// Creates a new texture ment to be used solely for being a depth attachment.
+    /// It has 1 mip and only 1 layer.
+    pub fn create_depth_attachment(
+        &self,
+        width: u32,
+        height: u32,
+        sample_count: u32,
+    ) -> wgpu::Texture {
+        return self.device().create_texture(&wgpu::TextureDescriptor {
+            label: Some("Depth Attachment"),
+            dimension: wgpu::TextureDimension::D2,
+            format: DEPTH_FORMAT,
+            mip_level_count: 1,
+            sample_count,
+            size: wgpu::Extent3d {
+                width,
+                height,
+                depth_or_array_layers: 1,
+            },
+            usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
+        });
+    }
+
+    pub fn create_hdr_attachment(
+        &self,
+        width: u32,
+        height: u32,
+        sample_count: u32,
+        texture_binding: bool,
+    ) -> wgpu::Texture {
+        let mut usage = wgpu::TextureUsages::RENDER_ATTACHMENT;
+        if texture_binding {
+            usage.insert(wgpu::TextureUsages::TEXTURE_BINDING);
+        }
+
+        return self.device().create_texture(&wgpu::TextureDescriptor {
+            label: Some("Depth Attachment"),
+            dimension: wgpu::TextureDimension::D2,
+            format: HDR_FORMAT,
+            mip_level_count: 1,
+            sample_count,
+            size: wgpu::Extent3d {
+                width,
+                height,
+                depth_or_array_layers: 1,
+            },
+            usage,
+        });
+    }
+
+    pub fn create_ldr_attachment(
+        &self,
+        width: u32,
+        height: u32,
+        sample_count: u32,
+        texture_binding: bool,
+    ) -> wgpu::Texture {
+        let mut usage = wgpu::TextureUsages::RENDER_ATTACHMENT;
+        if texture_binding {
+            usage.insert(wgpu::TextureUsages::TEXTURE_BINDING);
+        }
+
+        return self.device().create_texture(&wgpu::TextureDescriptor {
+            label: Some("Depth Attachment"),
+            dimension: wgpu::TextureDimension::D2,
+            format: LDR_FORMAT,
+            mip_level_count: 1,
+            sample_count,
+            size: wgpu::Extent3d {
+                width,
+                height,
+                depth_or_array_layers: 1,
+            },
+            usage,
+        });
+    }
+
+    pub fn depth_format(&self) -> wgpu::TextureFormat {
+        DEPTH_FORMAT
+    }
+
+    pub fn hdr_format(&self) -> wgpu::TextureFormat {
+        HDR_FORMAT
+    }
+
+    pub fn ldr_format(&self) -> wgpu::TextureFormat {
+        LDR_FORMAT
     }
 
     /// Registers a `wgpu::Texture` with a `ImageId`.
@@ -215,6 +341,54 @@ impl RenderCtxRef {
         self.inner.queue()
     }
 
+    pub fn default_texture(&self) -> wgpu::Texture {
+        self.inner.default_texture()
+    }
+
+    pub fn create_depth_attachment(
+        &self,
+        width: u32,
+        height: u32,
+        sample_count: u32,
+    ) -> wgpu::Texture {
+        self.inner
+            .create_depth_attachment(width, height, sample_count)
+    }
+
+    pub fn create_hdr_attachment(
+        &self,
+        width: u32,
+        height: u32,
+        sample_count: u32,
+        texture_binding: bool,
+    ) -> wgpu::Texture {
+        self.inner
+            .create_hdr_attachment(width, height, sample_count, texture_binding)
+    }
+
+    pub fn create_ldr_attachment(
+        &self,
+        width: u32,
+        height: u32,
+        sample_count: u32,
+        texture_binding: bool,
+    ) -> wgpu::Texture {
+        self.inner
+            .create_ldr_attachment(width, height, sample_count, texture_binding)
+    }
+
+    pub fn depth_format(&self) -> wgpu::TextureFormat {
+        self.inner.depth_format()
+    }
+
+    pub fn hdr_format(&self) -> wgpu::TextureFormat {
+        self.inner.hdr_format()
+    }
+
+    pub fn ldr_format(&self) -> wgpu::TextureFormat {
+        self.inner.ldr_format()
+    }
+
     pub fn register_image(&self, texture: &wgpu::Texture, filter: wgpu::FilterMode) -> ImageId {
         self.inner.register_image(texture, filter)
     }
@@ -242,3 +416,12 @@ pub struct RenderTargetView<'a> {
     pub width: u32,
     pub height: u32,
 }
+
+/// Format for all depth buffers.
+pub const DEPTH_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Depth24Plus;
+/// Format for low dynamic range color buffers.
+/// This is a format renderable to (and viewable from) the moniter.
+pub const LDR_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Rgba8Unorm;
+/// Format for high dynamic range color buffers.
+/// This format is usually unrepresentable on a moniter, and must be tone-mapped to LDR.
+pub const HDR_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Rgba32Float;

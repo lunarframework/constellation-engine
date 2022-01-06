@@ -588,7 +588,6 @@ struct VertexData {
     [[builtin(position)]] pos: vec4<f32>;
 };
 
-
 [[stage(vertex)]]
 fn vs_main(in: VertexInput) -> VertexData {
     let vertex = vertices[in.vertex_index];

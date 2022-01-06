@@ -155,8 +155,7 @@ pub fn open(matches: &ArgMatches) {
         },
     ));
 
-    let mut universe_renderer =
-        UniverseRenderer::new(render.clone(), wgpu::TextureFormat::Rgba8UnormSrgb);
+    let mut universe_renderer = UniverseRenderer::new(render.clone());
 
     app.run(move |event| match event {
         AppEvent::CloseRequested => AppState::Exit,
