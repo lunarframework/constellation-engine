@@ -266,18 +266,19 @@ impl StarPipeline {
                     entry_point: "fs_main",
                     targets: &[wgpu::ColorTargetState {
                         format: render.hdr_format(),
-                        blend: Some(wgpu::BlendState {
-                            color: wgpu::BlendComponent {
-                                src_factor: wgpu::BlendFactor::One,
-                                dst_factor: wgpu::BlendFactor::OneMinusSrcAlpha,
-                                operation: wgpu::BlendOperation::Add,
-                            },
-                            alpha: wgpu::BlendComponent {
-                                src_factor: wgpu::BlendFactor::OneMinusDstAlpha,
-                                dst_factor: wgpu::BlendFactor::One,
-                                operation: wgpu::BlendOperation::Add,
-                            },
-                        }),
+                        // blend: Some(wgpu::BlendState {
+                        //     color: wgpu::BlendComponent {
+                        //         src_factor: wgpu::BlendFactor::One,
+                        //         dst_factor: wgpu::BlendFactor::OneMinusSrcAlpha,
+                        //         operation: wgpu::BlendOperation::Add,
+                        //     },
+                        //     alpha: wgpu::BlendComponent {
+                        //         src_factor: wgpu::BlendFactor::OneMinusDstAlpha,
+                        //         dst_factor: wgpu::BlendFactor::One,
+                        //         operation: wgpu::BlendOperation::Add,
+                        //     },
+                        // }),
+                        blend: None,
                         write_mask: wgpu::ColorWrites::ALL,
                     }],
                 }),

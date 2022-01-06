@@ -40,9 +40,6 @@ pub struct RenderContext {
     device: Device,
     queue: Queue,
 
-    default_texture: wgpu::Texture,
-    default_view: wgpu::TextureView,
-
     image_bind_group_layout: wgpu::BindGroupLayout,
 
     next_image_id: AtomicU64,
@@ -104,29 +101,11 @@ impl RenderContext {
                     ],
                 });
 
-            let default_texture = device.create_texture(&wgpu::TextureDescriptor {
-                label: Some("Default Texture"),
-                dimension: wgpu::TextureDimension::D1,
-                format: wgpu::TextureFormat::R8Uint,
-                mip_level_count: 1,
-                sample_count: 1,
-                size: wgpu::Extent3d {
-                    width: 1,
-                    height: 1,
-                    depth_or_array_layers: 1,
-                },
-                usage: wgpu::TextureUsages::TEXTURE_BINDING,
-            });
-
-            let default_view = default_texture.create_view(&wgpu::TextureViewDescriptor::default());
-
             Self {
                 instance,
                 adapter,
                 device,
                 queue,
-                default_texture,
-                default_view,
                 image_bind_group_layout,
                 next_image_id: AtomicU64::new(0),
                 images: Mutex::new(HashMap::default()),
@@ -424,4 +403,4 @@ pub const DEPTH_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Depth24Plus;
 pub const LDR_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Rgba8Unorm;
 /// Format for high dynamic range color buffers.
 /// This format is usually unrepresentable on a moniter, and must be tone-mapped to LDR.
-pub const HDR_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Rgba32Float;
+pub const HDR_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Rgba16Float;

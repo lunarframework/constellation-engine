@@ -391,27 +391,25 @@ impl BloomCompute {
 
         let mut uniform_index = 0;
 
-        // Set lod to mips - 2
-
-        // Output: mip - 2 th level of upsample
-        // Input: downsample[0]
-        // Upsample: downsample[0]
-        let mip_size = base_size.mip_level_size(mips - 2, false);
-
-        workgroup_x = ((mip_size.width / BLOOM_COMPUTE_WORKSIZE) as f32).ceil() as u32;
-        workgroup_y = ((mip_size.height / BLOOM_COMPUTE_WORKSIZE) as f32).ceil() as u32;
-        compute_pass.set_bind_group(0, &self.up_bind_groups[uniform_index], &[]);
-        compute_pass.dispatch(workgroup_x, workgroup_y, 1);
-        uniform_index += 1;
-
-        for i in (0..(mips - 2)).rev() {
-            let mip_size = base_size.mip_level_size(i, false);
+        if mips > 2 {
+            let mip_size = base_size.mip_level_size(mips - 2, false);
 
             workgroup_x = ((mip_size.width / BLOOM_COMPUTE_WORKSIZE) as f32).ceil() as u32;
             workgroup_y = ((mip_size.height / BLOOM_COMPUTE_WORKSIZE) as f32).ceil() as u32;
-
             compute_pass.set_bind_group(0, &self.up_bind_groups[uniform_index], &[]);
             compute_pass.dispatch(workgroup_x, workgroup_y, 1);
+            uniform_index += 1;
+
+            for i in (0..(mips - 2)).rev() {
+                let mip_size = base_size.mip_level_size(i, false);
+
+                workgroup_x = ((mip_size.width / BLOOM_COMPUTE_WORKSIZE) as f32).ceil() as u32;
+                workgroup_y = ((mip_size.height / BLOOM_COMPUTE_WORKSIZE) as f32).ceil() as u32;
+
+                compute_pass.set_bind_group(0, &self.up_bind_groups[uniform_index], &[]);
+                compute_pass.dispatch(workgroup_x, workgroup_y, 1);
+                uniform_index += 1;
+            }
         }
 
         for i in 0..uniform_index {
@@ -460,8 +458,8 @@ impl BloomCompute {
                         format: self.render.hdr_format(),
                         mip_level_count,
                         sample_count: 1,
-                        usage: wgpu::TextureUsages::RENDER_ATTACHMENT
-                            | wgpu::TextureUsages::TEXTURE_BINDING,
+                        usage: wgpu::TextureUsages::TEXTURE_BINDING
+                            | wgpu::TextureUsages::STORAGE_BINDING,
                         size,
                     });
 
@@ -498,7 +496,7 @@ impl BloomCompute {
                     format: self.render.hdr_format(),
                     mip_level_count,
                     sample_count: 1,
-                    usage: wgpu::TextureUsages::RENDER_ATTACHMENT
+                    usage: wgpu::TextureUsages::STORAGE_BINDING
                         | wgpu::TextureUsages::TEXTURE_BINDING,
                     size,
                 });
@@ -563,8 +561,8 @@ impl BloomCompute {
                     format: self.render.hdr_format(),
                     mip_level_count,
                     sample_count: 1,
-                    usage: wgpu::TextureUsages::RENDER_ATTACHMENT
-                        | wgpu::TextureUsages::TEXTURE_BINDING,
+                    usage: wgpu::TextureUsages::TEXTURE_BINDING
+                        | wgpu::TextureUsages::STORAGE_BINDING,
                     size,
                 });
 
@@ -595,7 +593,7 @@ impl BloomCompute {
             let mut upsample_passes = 1;
 
             if self.levels > 4 {
-                upsample_passes += 2 * (self.levels - 4);
+                upsample_passes += self.levels - 4;
             }
 
             if self.up_data.len() < upsample_passes as usize {
@@ -631,7 +629,7 @@ impl BloomCompute {
             .render
             .device()
             .create_bind_group(&wgpu::BindGroupDescriptor {
-                label: Some("Star Bind Group"),
+                label: None,
                 layout: &self.down_bind_group_layout,
                 entries: &[
                     wgpu::BindGroupEntry {
@@ -761,54 +759,7 @@ impl BloomCompute {
 
         self.up_data[uniform_index].lod = mips as f32 - 2.0;
 
-        let bind_group = self
-            .render
-            .device()
-            .create_bind_group(&wgpu::BindGroupDescriptor {
-                label: None,
-                layout: &self.up_bind_group_layout,
-                entries: &[
-                    wgpu::BindGroupEntry {
-                        binding: 0,
-                        resource: wgpu::BindingResource::TextureView(
-                            &self.upsample_mip_views[(mips - 2) as usize],
-                        ),
-                    },
-                    wgpu::BindGroupEntry {
-                        binding: 1,
-                        resource: wgpu::BindingResource::TextureView(&self.downsample_view),
-                    },
-                    wgpu::BindGroupEntry {
-                        binding: 2,
-                        resource: wgpu::BindingResource::TextureView(&self.downsample_view),
-                    },
-                    wgpu::BindGroupEntry {
-                        binding: 3,
-                        resource: wgpu::BindingResource::Sampler(&self.sampler),
-                    },
-                    wgpu::BindGroupEntry {
-                        binding: 4,
-                        resource: wgpu::BindingResource::Buffer(wgpu::BufferBinding {
-                            buffer: &self.up_buffers[uniform_index],
-                            offset: 0,
-                            size: None,
-                        }),
-                    },
-                ],
-            });
-
-        // Set lod to mips - 2
-
-        // Output: mip - 2 th level of upsample
-        // Input: downsample[0]
-        // Upsample: downsample[0]
-
-        self.up_bind_groups.push(bind_group);
-        uniform_index += 1;
-
-        for i in (0..(mips - 2)).rev() {
-            self.up_data[uniform_index].lod = i as f32;
-
+        if mips > 2 {
             let bind_group = self
                 .render
                 .device()
@@ -819,7 +770,7 @@ impl BloomCompute {
                         wgpu::BindGroupEntry {
                             binding: 0,
                             resource: wgpu::BindingResource::TextureView(
-                                &self.upsample_mip_views[i as usize],
+                                &self.upsample_mip_views[(mips - 2) as usize],
                             ),
                         },
                         wgpu::BindGroupEntry {
@@ -828,9 +779,7 @@ impl BloomCompute {
                         },
                         wgpu::BindGroupEntry {
                             binding: 2,
-                            resource: wgpu::BindingResource::TextureView(
-                                &self.upsample_mip_views[(i + 1) as usize],
-                            ),
+                            resource: wgpu::BindingResource::TextureView(&self.downsample_view),
                         },
                         wgpu::BindGroupEntry {
                             binding: 3,
@@ -846,7 +795,60 @@ impl BloomCompute {
                         },
                     ],
                 });
+
+            // Set lod to mips - 2
+
+            // Output: mip - 2 th level of upsample
+            // Input: downsample[0]
+            // Upsample: downsample[0]
+
             self.up_bind_groups.push(bind_group);
+            uniform_index += 1;
+
+            for i in (0..(mips - 2)).rev() {
+                self.up_data[uniform_index].lod = i as f32;
+
+                let bind_group =
+                    self.render
+                        .device()
+                        .create_bind_group(&wgpu::BindGroupDescriptor {
+                            label: None,
+                            layout: &self.up_bind_group_layout,
+                            entries: &[
+                                wgpu::BindGroupEntry {
+                                    binding: 0,
+                                    resource: wgpu::BindingResource::TextureView(
+                                        &self.upsample_mip_views[i as usize],
+                                    ),
+                                },
+                                wgpu::BindGroupEntry {
+                                    binding: 1,
+                                    resource: wgpu::BindingResource::TextureView(
+                                        &self.downsample_view,
+                                    ),
+                                },
+                                wgpu::BindGroupEntry {
+                                    binding: 2,
+                                    resource: wgpu::BindingResource::TextureView(
+                                        &self.upsample_mip_views[(i + 1) as usize],
+                                    ),
+                                },
+                                wgpu::BindGroupEntry {
+                                    binding: 3,
+                                    resource: wgpu::BindingResource::Sampler(&self.sampler),
+                                },
+                                wgpu::BindGroupEntry {
+                                    binding: 4,
+                                    resource: wgpu::BindingResource::Buffer(wgpu::BufferBinding {
+                                        buffer: &self.up_buffers[uniform_index],
+                                        offset: 0,
+                                        size: None,
+                                    }),
+                                },
+                            ],
+                        });
+                self.up_bind_groups.push(bind_group);
+            }
         }
 
         for i in 0..uniform_index {

@@ -186,7 +186,11 @@ impl UniverseRenderer {
 
             composite_bind_group_layout,
             composite_pipeline,
-            composite_data: CompositeBuffer::default(),
+            composite_data: CompositeBuffer {
+                exposure: 1.0,
+                bloom_intensity: 0.0,
+                bloom_dirt_intensity: 0.0,
+            },
             composite_buffer,
             composite_sampler,
         }
@@ -206,7 +210,9 @@ impl UniverseRenderer {
                 .main_texture
                 .create_view(&wgpu::TextureViewDescriptor::default());
 
-            self.depth_texture = self.render.create_depth_attachment(1, 1, 1);
+            self.depth_texture = self
+                .render
+                .create_depth_attachment(self.width, self.height, 1);
             self.depth_view = self
                 .depth_texture
                 .create_view(&wgpu::TextureViewDescriptor::default());
@@ -248,8 +254,8 @@ impl UniverseRenderer {
 
         drop(render_pass);
 
-        self.bloom_compute
-            .compute(&mut encoder, &self.main_view, self.width, self.height);
+        // self.bloom_compute
+        //     .compute(&mut encoder, &self.main_view, self.width, self.height);
 
         // ************************
         // Composite Pass *********
@@ -275,7 +281,8 @@ impl UniverseRenderer {
                         },
                         wgpu::BindGroupEntry {
                             binding: 1,
-                            resource: wgpu::BindingResource::TextureView(self.bloom_compute.view()),
+                            // resource: wgpu::BindingResource::TextureView(self.bloom_compute.view()),
+                            resource: wgpu::BindingResource::TextureView(&self.main_view),
                         },
                         wgpu::BindGroupEntry {
                             binding: 2,

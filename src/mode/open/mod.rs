@@ -179,98 +179,98 @@ pub fn open(matches: &ArgMatches) {
                 // });
                 // ui.separator();
 
-                ui.horizontal(|ui| {
-                    ui.vertical(|ui| {
-                        let star = &mut universe.get_mut::<Star>(star).unwrap();
+                // ui.horizontal(|ui| {
+                //     ui.vertical(|ui| {
+                //         let star = &mut universe.get_mut::<Star>(star).unwrap();
 
-                        ui.label("Radius");
-                        ui.add(egui::DragValue::new(&mut star.radius).clamp_range(0.0f32..=10.0));
-                        ui.horizontal(|ui| {
-                            ui.vertical(|ui| {
-                                ui.strong("Granules");
-                                ui.label("Octaves");
-                                ui.add(
-                                    egui::DragValue::new(&mut star.granule_octaves)
-                                        .clamp_range(0.0f32..=10.0),
-                                );
-                                ui.label("Lacunarity");
-                                ui.add(
-                                    egui::DragValue::new(&mut star.granule_lacunarity)
-                                        .clamp_range(0.0f32..=1000.0),
-                                );
-                                ui.label("Gain");
-                                ui.add(
-                                    egui::DragValue::new(&mut star.granule_gain)
-                                        .clamp_range(0.0f32..=1.0)
-                                        .speed(0.1),
-                                );
-                            });
+                //         ui.label("Radius");
+                //         ui.add(egui::DragValue::new(&mut star.radius).clamp_range(0.0f32..=10.0));
+                //         ui.horizontal(|ui| {
+                //             ui.vertical(|ui| {
+                //                 ui.strong("Granules");
+                //                 ui.label("Octaves");
+                //                 ui.add(
+                //                     egui::DragValue::new(&mut star.granule_octaves)
+                //                         .clamp_range(0.0f32..=10.0),
+                //                 );
+                //                 ui.label("Lacunarity");
+                //                 ui.add(
+                //                     egui::DragValue::new(&mut star.granule_lacunarity)
+                //                         .clamp_range(0.0f32..=1000.0),
+                //                 );
+                //                 ui.label("Gain");
+                //                 ui.add(
+                //                     egui::DragValue::new(&mut star.granule_gain)
+                //                         .clamp_range(0.0f32..=1.0)
+                //                         .speed(0.1),
+                //                 );
+                //             });
 
-                            ui.vertical(|ui| {
-                                ui.strong("Sunspots");
-                                ui.label("Sharpness");
-                                ui.add(
-                                    egui::DragValue::new(&mut star.sunspot_sharpness)
-                                        .clamp_range(0.0f32..=1000.0),
-                                );
-                                ui.label("Cutoff");
-                                ui.add(
-                                    egui::DragValue::new(&mut star.sunspots_cutoff)
-                                        .clamp_range(0.0f32..=1.0),
-                                );
-                                ui.label("Frequency");
-                                ui.add(
-                                    egui::DragValue::new(&mut star.sunspots_frequency)
-                                        .clamp_range(0.0f32..=1.0)
-                                        .speed(0.001),
-                                );
-                                ui.label("Radius");
-                            });
-                        });
+                //             ui.vertical(|ui| {
+                //                 ui.strong("Sunspots");
+                //                 ui.label("Sharpness");
+                //                 ui.add(
+                //                     egui::DragValue::new(&mut star.sunspot_sharpness)
+                //                         .clamp_range(0.0f32..=1000.0),
+                //                 );
+                //                 ui.label("Cutoff");
+                //                 ui.add(
+                //                     egui::DragValue::new(&mut star.sunspots_cutoff)
+                //                         .clamp_range(0.0f32..=1.0),
+                //                 );
+                //                 ui.label("Frequency");
+                //                 ui.add(
+                //                     egui::DragValue::new(&mut star.sunspots_frequency)
+                //                         .clamp_range(0.0f32..=1.0)
+                //                         .speed(0.001),
+                //                 );
+                //                 ui.label("Radius");
+                //             });
+                //         });
 
-                        ui.horizontal(|ui| {
-                            let mut color = egui::Color32::from_rgba_premultiplied(
-                                (255.0 * star.color[0]) as u8,
-                                (255.0 * star.color[1]) as u8,
-                                (255.0 * star.color[2]) as u8,
-                                (255.0 * star.color[3]) as u8,
-                            );
+                //         ui.horizontal(|ui| {
+                //             let mut color = egui::Color32::from_rgba_premultiplied(
+                //                 (255.0 * star.color[0]) as u8,
+                //                 (255.0 * star.color[1]) as u8,
+                //                 (255.0 * star.color[2]) as u8,
+                //                 (255.0 * star.color[3]) as u8,
+                //             );
 
-                            ui.strong("Color");
-                            egui::color_picker::color_picker_color32(
-                                ui,
-                                &mut color,
-                                egui::color_picker::Alpha::Opaque,
-                            );
+                //             ui.strong("Color");
+                //             egui::color_picker::color_picker_color32(
+                //                 ui,
+                //                 &mut color,
+                //                 egui::color_picker::Alpha::Opaque,
+                //             );
 
-                            star.color[0] = color[0] as f32 / 255 as f32;
-                            star.color[1] = color[1] as f32 / 255 as f32;
-                            star.color[2] = color[2] as f32 / 255 as f32;
-                            star.color[3] = color[3] as f32 / 255 as f32;
+                //             star.color[0] = color[0] as f32 / 255 as f32;
+                //             star.color[1] = color[1] as f32 / 255 as f32;
+                //             star.color[2] = color[2] as f32 / 255 as f32;
+                //             star.color[3] = color[3] as f32 / 255 as f32;
 
-                            let mut shifted_color = egui::Color32::from_rgba_premultiplied(
-                                (255.0 * star.shift[0]) as u8,
-                                (255.0 * star.shift[1]) as u8,
-                                (255.0 * star.shift[2]) as u8,
-                                (255.0 * star.shift[3]) as u8,
-                            );
+                //             let mut shifted_color = egui::Color32::from_rgba_premultiplied(
+                //                 (255.0 * star.shift[0]) as u8,
+                //                 (255.0 * star.shift[1]) as u8,
+                //                 (255.0 * star.shift[2]) as u8,
+                //                 (255.0 * star.shift[3]) as u8,
+                //             );
 
-                            ui.strong("Shift");
-                            egui::color_picker::color_picker_color32(
-                                ui,
-                                &mut shifted_color,
-                                egui::color_picker::Alpha::Opaque,
-                            );
+                //             ui.strong("Shift");
+                //             egui::color_picker::color_picker_color32(
+                //                 ui,
+                //                 &mut shifted_color,
+                //                 egui::color_picker::Alpha::Opaque,
+                //             );
 
-                            star.shift[0] = shifted_color[0] as f32 / 255 as f32;
-                            star.shift[1] = shifted_color[1] as f32 / 255 as f32;
-                            star.shift[2] = shifted_color[2] as f32 / 255 as f32;
-                            star.shift[3] = shifted_color[3] as f32 / 255 as f32;
-                        });
-                    });
+                //             star.shift[0] = shifted_color[0] as f32 / 255 as f32;
+                //             star.shift[1] = shifted_color[1] as f32 / 255 as f32;
+                //             star.shift[2] = shifted_color[2] as f32 / 255 as f32;
+                //             star.shift[3] = shifted_color[3] as f32 / 255 as f32;
+                //         });
+                //     });
 
-                    ui.add(&mut viewport);
-                });
+                ui.add(&mut viewport);
+                // });
             });
 
             // star_editor(&ctx, &mut universe.get_mut::<Star>(star).unwrap());
