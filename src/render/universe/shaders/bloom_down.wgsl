@@ -62,27 +62,27 @@ fn downsample_box13(t: texture_2d<f32>, s: sampler, lod: f32, uv: vec2<f32>, tex
     return result;
 }
 
-fn downsample_box4(t: texture_2d<f32>, s: sampler, lod: f32, uv: vec2<f32>, texel_size: vec2<f32>) -> vec3<f32> {
-    // Center
-    let a = textureSampleLevel(t, s, uv, lod).rgb;
+// fn downsample_box4(t: texture_2d<f32>, s: sampler, lod: f32, uv: vec2<f32>, texel_size: vec2<f32>) -> vec3<f32> {
+//     // Center
+//     let a = textureSampleLevel(t, s, uv, lod).rgb;
 
-    let texel_size = texel_size * 0.5; // Sample from center of texels
+//     let texel_size = texel_size * 0.5; // Sample from center of texels
     
-    // Inner box
-    let b = textureSampleLevel(t, s, uv + texel_size * vec2<f32>(-1.0, -1.0), lod).rgb;
-    let c = textureSampleLevel(t, s, uv + texel_size * vec2<f32>(-1.0, 1.0), lod).rgb;
-    let d = textureSampleLevel(t, s, uv + texel_size * vec2<f32>(1.0, 1.0), lod).rgb;
-    let e = textureSampleLevel(t, s, uv + texel_size * vec2<f32>(1.0, -1.0), lod).rgb;
+//     // Inner box
+//     let b = textureSampleLevel(t, s, uv + texel_size * vec2<f32>(-1.0, -1.0), lod).rgb;
+//     let c = textureSampleLevel(t, s, uv + texel_size * vec2<f32>(-1.0, 1.0), lod).rgb;
+//     let d = textureSampleLevel(t, s, uv + texel_size * vec2<f32>(1.0, 1.0), lod).rgb;
+//     let e = textureSampleLevel(t, s, uv + texel_size * vec2<f32>(1.0, -1.0), lod).rgb;
 
-    // Weights
-    var result = vec3<f32>(0.0, 0.0, 0.0);
-    result = result + (b + c + d + e);
+//     // Weights
+//     var result = vec3<f32>(0.0, 0.0, 0.0);
+//     result = result + (b + c + d + e);
 
-    // 4 samples each
-    result = result * 0.25;
+//     // 4 samples each
+//     result = result * 0.25;
 
-    return result;
-}
+//     return result;
+// }
 
 // Quadratic color thresholding
 // curve = (threshold - knee, knee * 2, 0.25 / knee)

@@ -40,6 +40,20 @@ fn upsample_tent9(t: texture_2d<f32>, s: sampler, lod: f32, uv: vec2<f32>, texel
     return result * (1.0 / 16.0);
 }
 
+// fn upsample_box4(t: texture_2d<f32>, s: sampler, lod: f32, uv: vec2<f32>, texel_size: vec2<f32>, radius: f32) -> vec3<f32> {
+//     let offset = texel_size.xyxy * vec4<f32>(-1.0, -1.0, 1.0, 1.0) * radius;
+
+//     // Center
+//     var result = vec3<f32>(0.0, 0.0, 0.0);
+
+//     result = result + textureSampleLevel(t, s, uv + offset.xy, lod).rgb;
+//     result = result + textureSampleLevel(t, s, uv + offset.zy, lod).rgb;
+//     result = result + textureSampleLevel(t, s, uv + offset.xw, lod).rgb;
+//     result = result + textureSampleLevel(t, s, uv + offset.zw, lod).rgb;
+
+//     return result * (1.0 / 4.0);
+// }
+
 let SAMPLE_SCALE: f32 = 1.0;
 
 [[stage(compute), workgroup_size(4, 4, 1)]]
