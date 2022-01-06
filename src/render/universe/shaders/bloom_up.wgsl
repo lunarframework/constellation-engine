@@ -37,7 +37,7 @@ fn upsample_tent9(t: texture_2d<f32>, s: sampler, lod: f32, uv: vec2<f32>, texel
     result = result + textureSampleLevel(t, s, uv + offset.wy, lod).rgb * 2.0;
     result = result + textureSampleLevel(t, s, uv + offset.xy, lod).rgb;
 
-    return result * (1.0 / 6.0);
+    return result * (1.0 / 16.0);
 }
 
 let SAMPLE_SCALE: f32 = 1.0;

@@ -5,8 +5,14 @@ use super::{Camera, RenderCtxRef};
 mod bloom;
 mod star;
 
-use bloom::BloomCompute;
-use star::StarPipeline;
+pub use bloom::{BloomCompute, BloomSettings};
+pub use star::{StarPipeline, StarSettings};
+
+pub struct RendererSettings {
+    pub bloom: BloomSettings,
+    pub star: StarSettings,
+    pub exposure: f32,
+}
 
 pub struct UniverseRenderer {
     render: RenderCtxRef,
@@ -196,8 +202,8 @@ impl UniverseRenderer {
         }
     }
 
-    pub fn render(&mut self, world: &World, camera: &Camera, dt: f32) {
-        self.star_pipeline.update(world, camera, dt);
+    pub fn render(&mut self, world: &World, camera: &Camera, settings: &RendererSettings) {
+        self.star_pipeline.update(world, camera, &settings.star);
 
         if camera.width() != self.width || camera.height() != self.height {
             self.width = camera.width();
@@ -254,12 +260,21 @@ impl UniverseRenderer {
 
         drop(render_pass);
 
-        // self.bloom_compute
-        //     .compute(&mut encoder, &self.main_view, self.width, self.height);
+        self.bloom_compute.compute(
+            &mut encoder,
+            &self.main_view,
+            self.width,
+            self.height,
+            &settings.bloom,
+        );
 
         // ************************
         // Composite Pass *********
         // ************************
+
+        self.composite_data.exposure = settings.exposure;
+        self.composite_data.bloom_intensity = settings.bloom.intensity;
+        self.composite_data.bloom_dirt_intensity = 0.0;
 
         // Update settings
         self.render.queue().write_buffer(
@@ -278,11 +293,12 @@ impl UniverseRenderer {
                         wgpu::BindGroupEntry {
                             binding: 0,
                             resource: wgpu::BindingResource::TextureView(&self.main_view),
+                            // resource: wgpu::BindingResource::TextureView(self.bloom_compute.view()),
                         },
                         wgpu::BindGroupEntry {
                             binding: 1,
-                            // resource: wgpu::BindingResource::TextureView(self.bloom_compute.view()),
-                            resource: wgpu::BindingResource::TextureView(&self.main_view),
+                            resource: wgpu::BindingResource::TextureView(self.bloom_compute.view()),
+                            // resource: wgpu::BindingResource::TextureView(&self.main_view),
                         },
                         wgpu::BindGroupEntry {
                             binding: 2,

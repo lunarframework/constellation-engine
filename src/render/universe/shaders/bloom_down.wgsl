@@ -44,7 +44,7 @@ fn downsample_box13(t: texture_2d<f32>, s: sampler, lod: f32, uv: vec2<f32>, tex
     let m = textureSampleLevel(t, s, uv + texel_size * vec2<f32>(0.0, -2.0), lod).rgb;
 
     // Weights
-    var result = vec3<f32>(0.0);
+    var result = vec3<f32>(0.0, 0.0, 0.0);
     // Inner box
     result = result + (b + c + d + e) * 0.5;
     // Bottom-left box
@@ -55,6 +55,28 @@ fn downsample_box13(t: texture_2d<f32>, s: sampler, lod: f32, uv: vec2<f32>, tex
     result = result + (a + i + j + k) * 0.125;
     // Bottom-right box
     result = result + (m + a + k + l) * 0.125;
+
+    // 4 samples each
+    result = result * 0.25;
+
+    return result;
+}
+
+fn downsample_box4(t: texture_2d<f32>, s: sampler, lod: f32, uv: vec2<f32>, texel_size: vec2<f32>) -> vec3<f32> {
+    // Center
+    let a = textureSampleLevel(t, s, uv, lod).rgb;
+
+    let texel_size = texel_size * 0.5; // Sample from center of texels
+    
+    // Inner box
+    let b = textureSampleLevel(t, s, uv + texel_size * vec2<f32>(-1.0, -1.0), lod).rgb;
+    let c = textureSampleLevel(t, s, uv + texel_size * vec2<f32>(-1.0, 1.0), lod).rgb;
+    let d = textureSampleLevel(t, s, uv + texel_size * vec2<f32>(1.0, 1.0), lod).rgb;
+    let e = textureSampleLevel(t, s, uv + texel_size * vec2<f32>(1.0, -1.0), lod).rgb;
+
+    // Weights
+    var result = vec3<f32>(0.0, 0.0, 0.0);
+    result = result + (b + c + d + e);
 
     // 4 samples each
     result = result * 0.25;
@@ -94,6 +116,8 @@ fn main([[builtin(global_invocation_id)]] invocation: vec3<u32>) {
     if (uniforms.filter == 1u) {
         color = prefilter(color, coords);
     }
+
+    color = vec4<f32>(color.rgb, 1.0);
 
     textureStore(output, vec2<i32>(invocation.xy), color);
 }

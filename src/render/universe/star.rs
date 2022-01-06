@@ -6,6 +6,10 @@ use crate::render::CubeSphere;
 use starlight::World;
 use wgpu::util::DeviceExt;
 
+pub struct StarSettings {
+    pub anim_time: f32,
+}
+
 pub struct StarPipeline {
     render: RenderCtxRef,
     // HD Rendering
@@ -337,7 +341,7 @@ impl StarPipeline {
         }
     }
 
-    pub fn update(&mut self, world: &World, camera: &Camera, dt: f32) {
+    pub fn update(&mut self, world: &World, camera: &Camera, settings: &StarSettings) {
         // **********************
         // Update Enviornment ***
         // **********************
@@ -346,7 +350,7 @@ impl StarPipeline {
         self.env_data_hd.clip_to_world = proj_view.inverse();
         self.env_data_hd.world_to_clip = proj_view;
         self.env_data_hd.camera = camera.position().extend(camera.near());
-        self.env_data_hd.time = 0.0;
+        self.env_data_hd.time = settings.anim_time;
 
         self.render.queue().write_buffer(
             &self.env_buffer_hd,

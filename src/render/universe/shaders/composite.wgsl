@@ -106,11 +106,11 @@ fn fs_main(in: VertexData) -> FragmentOutput {
     let texSize = textureDimensions(bloom, 0);
     let fTexSize = vec2<f32>(texSize);
 
-    // let bloom_color = upsample_tent9(bloom, samp, 0.0, in.uv, 1.0 / fTexSize, SAMPLE_SCALE) * settings.bloom_intensity;
+    let bloom_color = upsample_tent9(bloom, samp, 0.0, in.uv, 1.0 / fTexSize, SAMPLE_SCALE) * settings.bloom_intensity;
     //let bloom_dirt = textureSample(bloom_texture, in.uv).rgb * settings.bloom_dirt_intensity;
 
     var color = textureSample(scene, samp, in.uv).rgb;
-    // color = color + bloom_color;
+    color = color + bloom_color;
     // color += bloom * bloom_dirt;
     color = color * settings.exposure;
 	color = ACESTonemap(color);

@@ -3,6 +3,12 @@ use std::num::NonZeroU32;
 
 const BLOOM_COMPUTE_WORKSIZE: u32 = 4;
 
+pub struct BloomSettings {
+    pub threshold: f32,
+    pub knee: f32,
+    pub intensity: f32,
+}
+
 pub struct BloomCompute {
     render: RenderCtxRef,
 
@@ -253,9 +259,9 @@ impl BloomCompute {
 
         let sampler = render.device().create_sampler(&wgpu::SamplerDescriptor {
             label: None,
-            address_mode_u: Default::default(),
-            address_mode_v: Default::default(),
-            address_mode_w: Default::default(),
+            address_mode_u: wgpu::AddressMode::ClampToEdge,
+            address_mode_v: wgpu::AddressMode::ClampToEdge,
+            address_mode_w: wgpu::AddressMode::ClampToEdge,
             mag_filter: wgpu::FilterMode::Linear,
             min_filter: wgpu::FilterMode::Linear,
             mipmap_filter: wgpu::FilterMode::Linear,
@@ -327,6 +333,7 @@ impl BloomCompute {
         view: &wgpu::TextureView,
         width: u32,
         height: u32,
+        settings: &BloomSettings,
     ) {
         let width = width / 2;
         let height = height / 2;
@@ -335,7 +342,7 @@ impl BloomCompute {
         let height = height + (BLOOM_COMPUTE_WORKSIZE - (height % BLOOM_COMPUTE_WORKSIZE));
 
         self.resize(width, height);
-        self.update(view);
+        self.update(view, settings);
 
         // Pre filtering
 
@@ -372,8 +379,8 @@ impl BloomCompute {
         for i in 1..mips {
             let mip_size = base_size.mip_level_size(i, false);
 
-            workgroup_x = ((mip_size.width / BLOOM_COMPUTE_WORKSIZE) as f32).ceil() as u32;
-            workgroup_y = ((mip_size.height / BLOOM_COMPUTE_WORKSIZE) as f32).ceil() as u32;
+            workgroup_x = (mip_size.width as f32 / BLOOM_COMPUTE_WORKSIZE as f32).ceil() as u32;
+            workgroup_y = (mip_size.height as f32 / BLOOM_COMPUTE_WORKSIZE as f32).ceil() as u32;
 
             compute_pass.set_bind_group(0, &self.down_bind_groups[uniform_index], &[]);
             compute_pass.dispatch(workgroup_x, workgroup_y, 1);
@@ -394,8 +401,9 @@ impl BloomCompute {
         if mips > 2 {
             let mip_size = base_size.mip_level_size(mips - 2, false);
 
-            workgroup_x = ((mip_size.width / BLOOM_COMPUTE_WORKSIZE) as f32).ceil() as u32;
-            workgroup_y = ((mip_size.height / BLOOM_COMPUTE_WORKSIZE) as f32).ceil() as u32;
+            workgroup_x = (mip_size.width as f32 / BLOOM_COMPUTE_WORKSIZE as f32).ceil() as u32;
+            workgroup_y = (mip_size.height as f32 / BLOOM_COMPUTE_WORKSIZE as f32).ceil() as u32;
+
             compute_pass.set_bind_group(0, &self.up_bind_groups[uniform_index], &[]);
             compute_pass.dispatch(workgroup_x, workgroup_y, 1);
             uniform_index += 1;
@@ -403,21 +411,14 @@ impl BloomCompute {
             for i in (0..(mips - 2)).rev() {
                 let mip_size = base_size.mip_level_size(i, false);
 
-                workgroup_x = ((mip_size.width / BLOOM_COMPUTE_WORKSIZE) as f32).ceil() as u32;
-                workgroup_y = ((mip_size.height / BLOOM_COMPUTE_WORKSIZE) as f32).ceil() as u32;
+                workgroup_x = (mip_size.width as f32 / BLOOM_COMPUTE_WORKSIZE as f32).ceil() as u32;
+                workgroup_y =
+                    (mip_size.height as f32 / BLOOM_COMPUTE_WORKSIZE as f32).ceil() as u32;
 
                 compute_pass.set_bind_group(0, &self.up_bind_groups[uniform_index], &[]);
                 compute_pass.dispatch(workgroup_x, workgroup_y, 1);
                 uniform_index += 1;
             }
-        }
-
-        for i in 0..uniform_index {
-            self.render.queue().write_buffer(
-                &self.up_buffers[i],
-                0,
-                bytemuck::cast_slice(&self.up_data[i..(i + 1)]),
-            )
         }
 
         drop(compute_pass);
@@ -475,7 +476,7 @@ impl BloomCompute {
                     .push(
                         self.downsample_texture
                             .create_view(&wgpu::TextureViewDescriptor {
-                                label: None,
+                                label: Some("Bloom Downscale Texture Mip View"),
                                 format: None,
                                 dimension: None,
                                 aspect: wgpu::TextureAspect::All,
@@ -491,7 +492,7 @@ impl BloomCompute {
                 .render
                 .device()
                 .create_texture(&wgpu::TextureDescriptor {
-                    label: Some("Bloom Downscale Texture"),
+                    label: Some("Bloom Ping Texture"),
                     dimension: wgpu::TextureDimension::D2,
                     format: self.render.hdr_format(),
                     mip_level_count,
@@ -511,7 +512,7 @@ impl BloomCompute {
             for i in 0..self.levels {
                 self.ping_mip_views.push(self.ping_texture.create_view(
                     &wgpu::TextureViewDescriptor {
-                        label: None,
+                        label: Some("Bloom Ping Texture Mip View"),
                         format: None,
                         dimension: None,
                         aspect: wgpu::TextureAspect::All,
@@ -522,7 +523,6 @@ impl BloomCompute {
                     },
                 ));
             }
-
             let mut downsample_passes = 1;
 
             if self.levels > 3 {
@@ -533,7 +533,9 @@ impl BloomCompute {
                 let additional = downsample_passes as usize - self.down_data.len();
                 self.down_data.reserve(additional);
                 self.down_buffers.reserve(additional);
+            }
 
+            while self.down_data.len() < downsample_passes as usize {
                 let data = DownUniformBuffer {
                     threshold: 1.0,
                     knee: 0.1,
@@ -556,7 +558,7 @@ impl BloomCompute {
                 .render
                 .device()
                 .create_texture(&wgpu::TextureDescriptor {
-                    label: Some("Bloom Downscale Texture"),
+                    label: Some("Bloom Upscale Texture"),
                     dimension: wgpu::TextureDimension::D2,
                     format: self.render.hdr_format(),
                     mip_level_count,
@@ -578,7 +580,7 @@ impl BloomCompute {
                     .push(
                         self.upsample_texture
                             .create_view(&wgpu::TextureViewDescriptor {
-                                label: None,
+                                label: Some("Bloom Upscale Texture Mip View"),
                                 format: None,
                                 dimension: None,
                                 aspect: wgpu::TextureAspect::All,
@@ -598,9 +600,11 @@ impl BloomCompute {
 
             if self.up_data.len() < upsample_passes as usize {
                 let additional = upsample_passes as usize - self.up_data.len();
-                self.up_data.reserve(additional);
-                self.up_buffers.reserve(additional);
+                self.down_data.reserve(additional);
+                self.down_buffers.reserve(additional);
+            }
 
+            while self.up_data.len() < upsample_passes as usize {
                 let data = UpUniformBuffer { lod: 0.0 };
 
                 let buffer = self.render.device().create_buffer(&wgpu::BufferDescriptor {
@@ -616,12 +620,12 @@ impl BloomCompute {
         }
     }
 
-    fn update(&mut self, view: &wgpu::TextureView) {
+    fn update(&mut self, view: &wgpu::TextureView, settings: &BloomSettings) {
         let mut uniform_index = 0;
         self.down_bind_groups.clear();
 
-        self.down_data[uniform_index].threshold = 1.0;
-        self.down_data[uniform_index].knee = 0.1;
+        self.down_data[uniform_index].threshold = settings.threshold;
+        self.down_data[uniform_index].knee = settings.knee;
         self.down_data[uniform_index].lod = 0.0;
         self.down_data[uniform_index].filter = 1;
 
@@ -757,9 +761,9 @@ impl BloomCompute {
         let mut uniform_index = 0;
         self.up_bind_groups.clear();
 
-        self.up_data[uniform_index].lod = mips as f32 - 2.0;
-
         if mips > 2 {
+            self.up_data[uniform_index].lod = mips as f32 - 2.0;
+
             let bind_group = self
                 .render
                 .device()
@@ -795,12 +799,6 @@ impl BloomCompute {
                         },
                     ],
                 });
-
-            // Set lod to mips - 2
-
-            // Output: mip - 2 th level of upsample
-            // Input: downsample[0]
-            // Upsample: downsample[0]
 
             self.up_bind_groups.push(bind_group);
             uniform_index += 1;

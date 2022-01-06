@@ -4,7 +4,7 @@ mod universe;
 
 pub use camera::Camera;
 pub use mesh::CubeSphere;
-pub use universe::UniverseRenderer;
+pub use universe::{BloomSettings, RendererSettings, StarSettings, UniverseRenderer};
 
 use log::info;
 use std::collections::HashMap;
@@ -181,7 +181,7 @@ impl RenderContext {
         }
 
         return self.device().create_texture(&wgpu::TextureDescriptor {
-            label: Some("Depth Attachment"),
+            label: Some("HDR Attachment"),
             dimension: wgpu::TextureDimension::D2,
             format: HDR_FORMAT,
             mip_level_count: 1,
@@ -208,7 +208,7 @@ impl RenderContext {
         }
 
         return self.device().create_texture(&wgpu::TextureDescriptor {
-            label: Some("Depth Attachment"),
+            label: Some("LDR Attachment"),
             dimension: wgpu::TextureDimension::D2,
             format: LDR_FORMAT,
             mip_level_count: 1,
