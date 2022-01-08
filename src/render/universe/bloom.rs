@@ -264,7 +264,7 @@ impl BloomCompute {
             address_mode_w: wgpu::AddressMode::ClampToEdge,
             mag_filter: wgpu::FilterMode::Linear,
             min_filter: wgpu::FilterMode::Linear,
-            mipmap_filter: wgpu::FilterMode::Linear,
+            mipmap_filter: wgpu::FilterMode::Nearest,
             lod_min_clamp: 0.0,
             lod_max_clamp: std::f32::MAX,
             compare: None,
@@ -699,11 +699,7 @@ impl BloomCompute {
                         },
                         wgpu::BindGroupEntry {
                             binding: 3,
-                            resource: wgpu::BindingResource::Buffer(wgpu::BufferBinding {
-                                buffer: &self.down_buffers[uniform_index],
-                                offset: 0,
-                                size: None,
-                            }),
+                            resource: self.down_buffers[uniform_index].as_entire_binding(),
                         },
                     ],
                 });
@@ -741,11 +737,7 @@ impl BloomCompute {
                         },
                         wgpu::BindGroupEntry {
                             binding: 3,
-                            resource: wgpu::BindingResource::Buffer(wgpu::BufferBinding {
-                                buffer: &self.down_buffers[uniform_index],
-                                offset: 0,
-                                size: None,
-                            }),
+                            resource: self.down_buffers[uniform_index].as_entire_binding(),
                         },
                     ],
                 });
@@ -786,11 +778,15 @@ impl BloomCompute {
                         },
                         wgpu::BindGroupEntry {
                             binding: 1,
-                            resource: wgpu::BindingResource::TextureView(&self.downsample_view),
+                            resource: wgpu::BindingResource::TextureView(
+                                &self.downsample_mip_views[(mips - 2) as usize],
+                            ),
                         },
                         wgpu::BindGroupEntry {
                             binding: 2,
-                            resource: wgpu::BindingResource::TextureView(&self.downsample_view),
+                            resource: wgpu::BindingResource::TextureView(
+                                &self.downsample_mip_views[(mips - 1) as usize],
+                            ),
                         },
                         wgpu::BindGroupEntry {
                             binding: 3,
@@ -825,7 +821,7 @@ impl BloomCompute {
                                 wgpu::BindGroupEntry {
                                     binding: 1,
                                     resource: wgpu::BindingResource::TextureView(
-                                        &self.downsample_view,
+                                        &self.downsample_mip_views[i as usize],
                                     ),
                                 },
                                 wgpu::BindGroupEntry {
