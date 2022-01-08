@@ -338,8 +338,11 @@ impl BloomCompute {
         let width = width / 2;
         let height = height / 2;
 
-        let width = width + (BLOOM_COMPUTE_WORKSIZE - (width % BLOOM_COMPUTE_WORKSIZE));
-        let height = height + (BLOOM_COMPUTE_WORKSIZE - (height % BLOOM_COMPUTE_WORKSIZE));
+        // let width = crate::utils::align(width, BLOOM_COMPUTE_WORKSIZE);
+        // let height = crate::utils::align(height, BLOOM_COMPUTE_WORKSIZE);
+
+        let width = width + BLOOM_COMPUTE_WORKSIZE - (width % BLOOM_COMPUTE_WORKSIZE);
+        let height = height + BLOOM_COMPUTE_WORKSIZE - (height % BLOOM_COMPUTE_WORKSIZE);
 
         self.resize(width, height);
         self.update(view, settings);
@@ -424,9 +427,9 @@ impl BloomCompute {
         drop(compute_pass);
     }
 
-    pub fn texture(&self) -> &wgpu::Texture {
-        &self.upsample_texture
-    }
+    // pub fn texture(&self) -> &wgpu::Texture {
+    //     &self.upsample_texture
+    // }
 
     pub fn view(&self) -> &wgpu::TextureView {
         &self.upsample_view
@@ -600,8 +603,8 @@ impl BloomCompute {
 
             if self.up_data.len() < upsample_passes as usize {
                 let additional = upsample_passes as usize - self.up_data.len();
-                self.down_data.reserve(additional);
-                self.down_buffers.reserve(additional);
+                self.up_data.reserve(additional);
+                self.up_buffers.reserve(additional);
             }
 
             while self.up_data.len() < upsample_passes as usize {
@@ -686,7 +689,9 @@ impl BloomCompute {
                         },
                         wgpu::BindGroupEntry {
                             binding: 1,
-                            resource: wgpu::BindingResource::TextureView(&self.downsample_view),
+                            resource: wgpu::BindingResource::TextureView(
+                                &self.downsample_mip_views[(i - 1) as usize],
+                            ),
                         },
                         wgpu::BindGroupEntry {
                             binding: 2,
@@ -726,7 +731,9 @@ impl BloomCompute {
                         },
                         wgpu::BindGroupEntry {
                             binding: 1,
-                            resource: wgpu::BindingResource::TextureView(&self.ping_view),
+                            resource: wgpu::BindingResource::TextureView(
+                                &self.ping_mip_views[i as usize],
+                            ),
                         },
                         wgpu::BindGroupEntry {
                             binding: 2,
@@ -791,11 +798,7 @@ impl BloomCompute {
                         },
                         wgpu::BindGroupEntry {
                             binding: 4,
-                            resource: wgpu::BindingResource::Buffer(wgpu::BufferBinding {
-                                buffer: &self.up_buffers[uniform_index],
-                                offset: 0,
-                                size: None,
-                            }),
+                            resource: self.up_buffers[uniform_index].as_entire_binding(),
                         },
                     ],
                 });
@@ -830,6 +833,9 @@ impl BloomCompute {
                                     resource: wgpu::BindingResource::TextureView(
                                         &self.upsample_mip_views[(i + 1) as usize],
                                     ),
+                                    // resource: wgpu::BindingResource::TextureView(
+                                    //     &self.upsample_view,
+                                    // ),
                                 },
                                 wgpu::BindGroupEntry {
                                     binding: 3,
@@ -837,15 +843,12 @@ impl BloomCompute {
                                 },
                                 wgpu::BindGroupEntry {
                                     binding: 4,
-                                    resource: wgpu::BindingResource::Buffer(wgpu::BufferBinding {
-                                        buffer: &self.up_buffers[uniform_index],
-                                        offset: 0,
-                                        size: None,
-                                    }),
+                                    resource: self.up_buffers[uniform_index].as_entire_binding(),
                                 },
                             ],
                         });
                 self.up_bind_groups.push(bind_group);
+                uniform_index += 1;
             }
         }
 
@@ -853,7 +856,7 @@ impl BloomCompute {
             self.render.queue().write_buffer(
                 &self.up_buffers[i],
                 0,
-                bytemuck::cast_slice(&self.up_data[i..(i + 1)]),
+                bytemuck::cast_slice(&[self.up_data[i]]),
             )
         }
     }

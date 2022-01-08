@@ -1,12 +1,9 @@
 use super::Camera;
 use super::RenderCtxRef;
-use super::UniverseRenderer;
 use crate::components::{Star, Transform};
-use crate::render::CubeSphere;
 use starlight::World;
 use std::alloc::Layout;
 use std::num::NonZeroU64;
-use wgpu::util::DeviceExt;
 
 pub struct StarSettings {
     pub anim_time: f32,

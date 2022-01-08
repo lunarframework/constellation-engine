@@ -23,56 +23,81 @@ var<uniform> uniforms: Uniforms;
 
 fn downsample_box13(t: texture_2d<f32>, s: sampler, lod: f32, uv: vec2<f32>, texel_size: vec2<f32>) -> vec3<f32> {
     // Center
-    let a = textureSampleLevel(t, s, uv, lod).rgb;
+    // let a = textureSampleLevel(t, s, uv, lod).rgb;
 
-    let texel_size = texel_size * 0.5; // Sample from center of texels
+    // let texel_size = texel_size * 0.5; // Sample from center of texels
+
+    // Better, temporally stable box filtering
+    // [Jimenez14] http://goo.gl/eomGso
+    // . . . . . . .
+    // . A . B . C .
+    // . . D . E . .
+    // . F . G . H .
+    // . . I . J . .
+    // . K . L . M .
+    // . . . . . . .
+
+    let a = textureSampleLevel(t, s, uv + texel_size * vec2<f32>(-1.0, -1.0), lod).rgb;
+    let b = textureSampleLevel(t, s, uv + texel_size * vec2<f32>(0.0, -1.0), lod).rgb;
+    let c = textureSampleLevel(t, s, uv + texel_size * vec2<f32>(1.0, -1.0), lod).rgb;
+    let d = textureSampleLevel(t, s, uv + texel_size * vec2<f32>(-0.5, -0.5), lod).rgb;
+    let e = textureSampleLevel(t, s, uv + texel_size * vec2<f32>(0.5, -0.5), lod).rgb;
+    let f = textureSampleLevel(t, s, uv + texel_size * vec2<f32>(-1.0, 0.0), lod).rgb;
+    let g = textureSampleLevel(t, s, uv, lod).rgb;
+    let h = textureSampleLevel(t, s, uv + texel_size * vec2<f32>(1.0, 0.0), lod).rgb;
+    let i = textureSampleLevel(t, s, uv + texel_size * vec2<f32>(-0.5, 0.5), lod).rgb;
+    let j = textureSampleLevel(t, s, uv + texel_size * vec2<f32>(0.5, 0.5), lod).rgb;
+    let k = textureSampleLevel(t, s, uv + texel_size * vec2<f32>(-1.0, 1.0), lod).rgb;
+    let l = textureSampleLevel(t, s, uv + texel_size * vec2<f32>(0.0, 1.0), lod).rgb;
+    let m = textureSampleLevel(t, s, uv + texel_size * vec2<f32>(1.0, 1.0), lod).rgb;
     
-    // Inner box
-    let b = textureSampleLevel(t, s, uv + texel_size * vec2<f32>(-1.0, -1.0), lod).rgb;
-    let c = textureSampleLevel(t, s, uv + texel_size * vec2<f32>(-1.0, 1.0), lod).rgb;
-    let d = textureSampleLevel(t, s, uv + texel_size * vec2<f32>(1.0, 1.0), lod).rgb;
-    let e = textureSampleLevel(t, s, uv + texel_size * vec2<f32>(1.0, -1.0), lod).rgb;
+    // // Inner box
+    // let b = textureSampleLevel(t, s, uv + texel_size * vec2<f32>(-1.0, -1.0), lod).rgb;
+    // let c = textureSampleLevel(t, s, uv + texel_size * vec2<f32>(-1.0, 1.0), lod).rgb;
+    // let d = textureSampleLevel(t, s, uv + texel_size * vec2<f32>(1.0, 1.0), lod).rgb;
+    // let e = textureSampleLevel(t, s, uv + texel_size * vec2<f32>(1.0, -1.0), lod).rgb;
 
-    // Outer box
-    let f = textureSampleLevel(t, s, uv + texel_size * vec2<f32>(-2.0, -2.0), lod).rgb;
-    let g = textureSampleLevel(t, s, uv + texel_size * vec2<f32>(-2.0, 0.0), lod).rgb;
-    let h = textureSampleLevel(t, s, uv + texel_size * vec2<f32>(0.0, 2.0), lod).rgb;
-    let i = textureSampleLevel(t, s, uv + texel_size * vec2<f32>(2.0, 2.0), lod).rgb;
-    let j = textureSampleLevel(t, s, uv + texel_size * vec2<f32>(2.0, 2.0), lod).rgb;
-    let k = textureSampleLevel(t, s, uv + texel_size * vec2<f32>(2.0, 0.0), lod).rgb;
-    let l = textureSampleLevel(t, s, uv + texel_size * vec2<f32>(-2.0, -2.0), lod).rgb;
-    let m = textureSampleLevel(t, s, uv + texel_size * vec2<f32>(0.0, -2.0), lod).rgb;
+    // // Outer box
+    // let f = textureSampleLevel(t, s, uv + texel_size * vec2<f32>(-2.0, -2.0), lod).rgb;
+    // let g = textureSampleLevel(t, s, uv + texel_size * vec2<f32>(-2.0, 0.0), lod).rgb;
+    // let h = textureSampleLevel(t, s, uv + texel_size * vec2<f32>(0.0, 2.0), lod).rgb;
+    // let i = textureSampleLevel(t, s, uv + texel_size * vec2<f32>(2.0, 2.0), lod).rgb;
+    // let j = textureSampleLevel(t, s, uv + texel_size * vec2<f32>(2.0, 2.0), lod).rgb;
+    // let k = textureSampleLevel(t, s, uv + texel_size * vec2<f32>(2.0, 0.0), lod).rgb;
+    // let l = textureSampleLevel(t, s, uv + texel_size * vec2<f32>(-2.0, -2.0), lod).rgb;
+    // let m = textureSampleLevel(t, s, uv + texel_size * vec2<f32>(0.0, -2.0), lod).rgb;
 
-    // Weights
-    var result = vec3<f32>(0.0, 0.0, 0.0);
-    // Inner box
-    result = result + (b + c + d + e) * 0.5;
-    // Bottom-left box
-    result = result + (f + g + a + m) * 0.125;
-    // Top-left box
-    result = result + (g + h + i + a) * 0.125;
-    // Top-right box
-    result = result + (a + i + j + k) * 0.125;
-    // Bottom-right box
-    result = result + (m + a + k + l) * 0.125;
+    // // Weights
+    // var result = vec3<f32>(0.0, 0.0, 0.0);
+    // // Inner box
+    // result = result + (b + c + d + e) * 0.5;
+    // // Bottom-left box
+    // result = result + (f + g + a + m) * 0.125;
+    // // Top-left box
+    // result = result + (g + h + i + a) * 0.125;
+    // // Top-right box
+    // result = result + (a + i + j + k) * 0.125;
+    // // Bottom-right box
+    // result = result + (m + a + k + l) * 0.125;
 
-    // 4 samples each
-    result = result * 0.25;
+    // // 4 samples each
+    // result = result * 0.25;
 
-    return result;
+    var result = (d + e + i + j) * 0.5;
+    result = result + (a + b + g + f) * 0.125;
+    result = result + (b + c + h + g) * 0.125;
+    result = result + (f + g + l + k) * 0.125;
+    result = result + (g + h + m + l) * 0.125;
+
+    return result * (1.0 / 4.0);
 }
 
-// fn downsample_box4(t: texture_2d<f32>, s: sampler, lod: f32, uv: vec2<f32>, texel_size: vec2<f32>) -> vec3<f32> {
-//     // Center
-//     let a = textureSampleLevel(t, s, uv, lod).rgb;
-
-//     let texel_size = texel_size * 0.5; // Sample from center of texels
-    
+// fn downsample_box4(t: texture_2d<f32>, s: sampler, lod: f32, uv: vec2<f32>, texel_size: vec2<f32>) -> vec3<f32> {    
 //     // Inner box
-//     let b = textureSampleLevel(t, s, uv + texel_size * vec2<f32>(-1.0, -1.0), lod).rgb;
-//     let c = textureSampleLevel(t, s, uv + texel_size * vec2<f32>(-1.0, 1.0), lod).rgb;
-//     let d = textureSampleLevel(t, s, uv + texel_size * vec2<f32>(1.0, 1.0), lod).rgb;
-//     let e = textureSampleLevel(t, s, uv + texel_size * vec2<f32>(1.0, -1.0), lod).rgb;
+//     let b = textureSampleLevel(t, s, uv + texel_size * vec2<f32>(-0.5, -0.5), lod).rgb;
+//     let c = textureSampleLevel(t, s, uv + texel_size * vec2<f32>(-0.5, 0.5), lod).rgb;
+//     let d = textureSampleLevel(t, s, uv + texel_size * vec2<f32>(0.5, 0.5), lod).rgb;
+//     let e = textureSampleLevel(t, s, uv + texel_size * vec2<f32>(0.5, -0.5), lod).rgb;
 
 //     // Weights
 //     var result = vec3<f32>(0.0, 0.0, 0.0);

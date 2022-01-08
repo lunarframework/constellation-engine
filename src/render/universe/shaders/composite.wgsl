@@ -51,20 +51,21 @@ fn upsample_tent9(t: texture_2d<f32>, s: sampler, lod: f32, uv: vec2<f32>, texel
     let offset = texel_size.xyxy * vec4<f32>(1.0, 1.0, -1.0, 0.0) * radius;
 
     // Center
-    var result = textureSampleLevel(t, s, uv, lod).rgb * 4.0;
+    var result = vec3<f32>(0.0, 0.0, 0.0);
 
     result = result + textureSampleLevel(t, s, uv - offset.xy, lod).rgb;
     result = result + textureSampleLevel(t, s, uv - offset.wy, lod).rgb * 2.0;
     result = result + textureSampleLevel(t, s, uv - offset.zy, lod).rgb;
 
     result = result + textureSampleLevel(t, s, uv + offset.zw, lod).rgb * 2.0;
+    result = result + textureSampleLevel(t, s, uv, lod).rgb * 4.0;
     result = result + textureSampleLevel(t, s, uv + offset.xw, lod).rgb * 2.0;
 
     result = result + textureSampleLevel(t, s, uv + offset.zy, lod).rgb;
     result = result + textureSampleLevel(t, s, uv + offset.wy, lod).rgb * 2.0;
     result = result + textureSampleLevel(t, s, uv + offset.xy, lod).rgb;
 
-    return result * (1.0 / 6.0);
+    return result * (1.0 / 16.0);
 }
 
 // Based on http://www.oscars.org/science-technology/sci-tech-projects/aces

@@ -16,6 +16,7 @@ env_logger = "0.9.0"
 futures = "0.3.17"
 glam = { version = "0.20.2", features = ["bytemuck"] }
 log = "0.4.0"
+num-traits = "0.2"
 wgpu = "0.11.1"
 winit = "0.25.0"
 

@@ -147,7 +147,7 @@ pub fn open(matches: &ArgMatches) {
             granule_lacunarity: 40.0,
             granule_gain: 0.5,
             granule_octaves: 3.0,
-            color: Vec4::new(1.0, 1.0, 1.0, 1.0),
+            color: Vec4::new(2.0, 2.0, 2.0, 1.0),
             shift: Vec4::new(0.0, 0.0, 0.0, 1.0),
             sunspot_sharpness: 2.0,
             sunspots_cutoff: 0.3,
@@ -162,7 +162,7 @@ pub fn open(matches: &ArgMatches) {
             granule_lacunarity: 40.0,
             granule_gain: 0.5,
             granule_octaves: 3.0,
-            color: Vec4::new(0.0, 0.0, 1.0, 1.0),
+            color: Vec4::new(0.0, 0.1, 0.8, 1.0),
             shift: Vec4::new(0.0, 0.0, 0.0, 1.0),
             sunspot_sharpness: 2.0,
             sunspots_cutoff: 0.3,
@@ -187,8 +187,8 @@ pub fn open(matches: &ArgMatches) {
 
     let mut renderer_settings = RendererSettings {
         bloom: BloomSettings {
-            threshold: 0.4,
-            knee: 0.3,
+            threshold: 0.9,
+            knee: 0.1,
             intensity: 1.0,
         },
         star: StarSettings {
