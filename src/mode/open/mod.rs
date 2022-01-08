@@ -193,7 +193,7 @@ pub fn open(matches: &ArgMatches) {
         },
         star: StarSettings {
             anim_time: 0.0,
-            min_size_for_rays: 0.0,
+            min_size_for_rays: 0.01,
         },
         exposure: 1.0,
     };

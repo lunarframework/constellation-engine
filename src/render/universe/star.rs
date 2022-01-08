@@ -94,7 +94,7 @@ impl StarPipeline {
                     module: &module,
                     buffers: &[
                         wgpu::VertexBufferLayout {
-                            array_stride: 4 * 4 * 6,
+                            array_stride: 4 * 4 * 3,
                             step_mode: wgpu::VertexStepMode::Instance,
                             // 0: pos,
                             // 1: color,
@@ -345,7 +345,7 @@ impl StarPipeline {
         // *****************
 
         self.star_data_rays.clear();
-        self.star_data_rays.clear();
+        self.star_instance_data.clear();
 
         let mut query = world.query::<(&Transform, &Star)>();
 
@@ -353,40 +353,28 @@ impl StarPipeline {
             let distance = transform.translation.distance(*camera.position()) - star.radius;
             let scale_factor = camera.scale_factor(distance);
 
-            // if (star.radius * star.radius * scale_factor * scale_factor
-            //     >= settings.min_size_for_rays)
-            //     || distance < 0.0
-            // {
-            //     self.star_data_rays.push(StarBufferRays {
-            //         pos: transform.translation.extend(star.radius),
-            //         color: star.color,
-            //         shift: star.shift,
-            //         granule_lacunarity: star.granule_lacunarity,
-            //         granule_gain: star.granule_gain,
-            //         granule_octaves: star.granule_octaves,
-            //         sunspot_sharpness: star.sunspot_sharpness,
-            //         sunspot_cutoff: star.sunspots_cutoff,
-            //         sunspot_frequency: star.sunspots_frequency,
-            //     });
-            // } else {
-            //     self.star_instance_data.push(StarInstanceBuffer {
-            //         pos: transform.translation.extend(star.radius),
-            //         color: star.color,
-            //         shift: star.shift,
-            //     });
-            // }
-
-            self.star_data_rays.push(StarBufferRays {
-                pos: transform.translation.extend(star.radius),
-                color: star.color,
-                shift: star.shift,
-                granule_lacunarity: star.granule_lacunarity,
-                granule_gain: star.granule_gain,
-                granule_octaves: star.granule_octaves,
-                sunspot_sharpness: star.sunspot_sharpness,
-                sunspot_cutoff: star.sunspots_cutoff,
-                sunspot_frequency: star.sunspots_frequency,
-            });
+            if (star.radius * star.radius * scale_factor * scale_factor
+                >= settings.min_size_for_rays)
+                || distance < 0.0
+            {
+                self.star_data_rays.push(StarBufferRays {
+                    pos: transform.translation.extend(star.radius),
+                    color: star.color,
+                    shift: star.shift,
+                    granule_lacunarity: star.granule_lacunarity,
+                    granule_gain: star.granule_gain,
+                    granule_octaves: star.granule_octaves,
+                    sunspot_sharpness: star.sunspot_sharpness,
+                    sunspot_cutoff: star.sunspots_cutoff,
+                    sunspot_frequency: star.sunspots_frequency,
+                });
+            } else {
+                self.star_instance_data.push(StarInstanceBuffer {
+                    pos: transform.translation.extend(star.radius),
+                    color: star.color,
+                    shift: star.shift,
+                });
+            }
         }
 
         let uniform_buffer_align = self
@@ -458,20 +446,20 @@ impl StarPipeline {
     }
 
     pub fn render<'s>(&'s self, render_pass: &mut wgpu::RenderPass<'s>, camera: &Camera) {
-        // // "Particle" rendering
-        // render_pass.set_pipeline(&self.pipeline);
-        // render_pass.set_viewport(
-        //     0.0,
-        //     0.0,
-        //     camera.width() as f32,
-        //     camera.height() as f32,
-        //     0.0,
-        //     1.0,
-        // );
-        // render_pass.set_scissor_rect(0, 0, camera.width(), camera.height());
-        // render_pass.set_bind_group(0, &self.env_bind_group, &[]);
-        // render_pass.set_vertex_buffer(0, self.star_instance_buffer.slice(..));
-        // render_pass.draw(0..6, 0..self.star_instance_data.len() as u32);
+        // "Particle" rendering
+        render_pass.set_pipeline(&self.pipeline);
+        render_pass.set_viewport(
+            0.0,
+            0.0,
+            camera.width() as f32,
+            camera.height() as f32,
+            0.0,
+            1.0,
+        );
+        render_pass.set_scissor_rect(0, 0, camera.width(), camera.height());
+        render_pass.set_bind_group(0, &self.env_bind_group, &[]);
+        render_pass.set_vertex_buffer(0, self.star_instance_buffer.slice(..));
+        render_pass.draw(0..6, 0..self.star_instance_data.len() as u32);
 
         // Ray Marching
         render_pass.set_pipeline(&self.pipeline_rays);

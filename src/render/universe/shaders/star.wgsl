@@ -1,10 +1,10 @@
 var<private> vertices: array<vec2<f32>, 6> = array<vec2<f32>, 6>(
-    vec2<f32>(-0.5, -0.5),
-    vec2<f32>(-0.5, 0.5),
-    vec2<f32>(0.5, 0.5),
-    vec2<f32>(0.5, -0.5),
-    vec2<f32>(-0.5, -0.5),
-    vec2<f32>(0.5, 0.5),
+    vec2<f32>(-1.0, -1.0),
+    vec2<f32>(-1.0, 1.0),
+    vec2<f32>(1.0, 1.0),
+    vec2<f32>(1.0, -1.0),
+    vec2<f32>(-1.0, -1.0),
+    vec2<f32>(1.0, 1.0),
 );
 
 struct VertexInput {
@@ -46,7 +46,7 @@ fn vs_main(in: VertexInput) -> VertexData {
     var out: VertexData;
     out.color = in.color;
     out.shift = in.pos;
-    out.coords = vertex * 2.0;
+    out.coords = vertex;
     out.pos = env.proj * viewspace;
     return out;
 }
@@ -60,7 +60,11 @@ fn fs_main(in: VertexData) -> FragmentOutput {
     let product = in.coords * in.coords;
     let r2 = product.x + product.y;
 
+    if (r2 > 1.0) {
+        discard;
+    }
+
     var out: FragmentOutput;
-    out.color = vec4<f32>(in.color * f32(r2 <= 1.0));
+    out.color = vec4<f32>(in.color.xyz, 1.0);
     return out;
 }

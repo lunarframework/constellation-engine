@@ -660,12 +660,12 @@ fn ray_hit(origin: vec3<f32>, direction: vec3<f32>, distance: f32, iteration: u3
     let current_pos = origin + direction * distance;
     let surface_pos = normalize(current_pos - star.pos.xyz);
 
-    let n = (noise(vec4<f32>(surface_pos * star.pos.w, env.time), star.granule_lacunarity, star.granule_gain, star.granule_octaves) + 1.0) * 0.5;
+    // let n = (noise(vec4<f32>(surface_pos * star.pos.w, env.time), star.granule_lacunarity, star.granule_gain, star.granule_octaves) + 1.0) * 0.5;
 
-    let t1 = snoise(vec4<f32>(surface_pos * star.pos.w * star.sunspot_frequency, env.time)) - star.sunspot_cutoff;
-    let t2 = snoise(vec4<f32>((surface_pos + 1.0) * star.pos.w * star.sunspot_frequency, env.time)) - star.sunspot_cutoff;
-    let ss = (max(t1, 0.0) * max(t2, 0.0)) * star.sunspot_sharpness;
-    let total = n - ss;
+    // let t1 = snoise(vec4<f32>(surface_pos * star.pos.w * star.sunspot_frequency, env.time)) - star.sunspot_cutoff;
+    // let t2 = snoise(vec4<f32>((surface_pos + 1.0) * star.pos.w * star.sunspot_frequency, env.time)) - star.sunspot_cutoff;
+    // let ss = (max(t1, 0.0) * max(t2, 0.0)) * star.sunspot_sharpness;
+    // let total = n - ss;
     let total = 0.5;
 
     let normal = calculate_normal(current_pos);
@@ -673,7 +673,8 @@ fn ray_hit(origin: vec3<f32>, direction: vec3<f32>, distance: f32, iteration: u3
     let theta = 1.0 - dot(normal, -direction);
 
     var out: FragmentOutput;
-    out.color = vec4<f32>(total * star.color.xyz + theta * star.shift.xyz, 1.0);
+    // out.color = vec4<f32>(total * star.color.xyz + theta * star.shift.xyz, 1.0);
+    out.color = vec4<f32>(star.color.xyz, 1.0);
 
     let clip_pos = env.proj_view * vec4<f32>(current_pos, 1.0);
     out.depth = clip_pos.z / clip_pos.w;
