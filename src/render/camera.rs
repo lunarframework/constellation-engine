@@ -1,5 +1,5 @@
 use super::{ImageId, RenderCtxRef};
-use glam::{Mat4, Quat, Vec3};
+use glam::{Mat4, Quat, Vec3, Vec4};
 
 /// Allows 3D data to be rendered to a given 2D target.
 pub struct Camera {
@@ -18,6 +18,7 @@ pub struct Camera {
 
     fovy: f32,
     near: f32,
+    far: f32,
 }
 
 impl Camera {
@@ -40,6 +41,7 @@ impl Camera {
 
             fovy: 3.14 / 4.0,
             near: 0.01,
+            far: 1000.0,
         }
     }
 
@@ -69,12 +71,20 @@ impl Camera {
         self.near
     }
 
+    pub fn far(&self) -> f32 {
+        self.far
+    }
+
     pub fn set_fovy(&mut self, fovy: f32) {
         self.fovy = fovy;
     }
 
     pub fn set_near(&mut self, near: f32) {
         self.near = near;
+    }
+
+    pub fn set_far(&mut self, far: f32) {
+        self.far = far;
     }
 
     pub fn target(&self) -> &wgpu::Texture {
@@ -134,7 +144,8 @@ impl Camera {
     }
 
     pub fn compute_projection_matrix(&self) -> Mat4 {
-        Mat4::perspective_infinite_reverse_lh(self.fovy, self.aspect(), self.near)
+        // Mat4::perspective_infinite_reverse_lh(self.fovy, self.aspect(), self.near)
+        Mat4::perspective_lh(self.fovy, self.aspect(), self.near, self.far)
     }
 
     pub fn compute_view_matrix(&self) -> Mat4 {
@@ -143,6 +154,11 @@ impl Camera {
 
     pub fn compute_proj_view_matrix(&self) -> Mat4 {
         self.compute_projection_matrix() * self.compute_view_matrix()
+    }
+
+    /// Returns the amount (on each axis) a length will be scale at a certain z value.
+    pub fn scale_factor(&self, distance: f32) -> f32 {
+        1.0 / (self.compute_projection_matrix() * Vec4::new(0.0, 0.0, distance, 1.0)).w
     }
 }
 

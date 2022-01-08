@@ -584,7 +584,7 @@ struct VertexInput {
 };
 
 struct VertexData {
-    [[location(0)]] uv: vec2<f32>;
+    [[location(0)]] coords: vec2<f32>;
     [[builtin(position)]] pos: vec4<f32>;
 };
 
@@ -592,16 +592,18 @@ struct VertexData {
 fn vs_main(in: VertexInput) -> VertexData {
     let vertex = vertices[in.vertex_index];
     var out: VertexData;
-    out.uv = vertex;
+    out.coords = vertex;
     out.pos = vec4<f32>(vertex, 0.0, 1.0);
     return out;
 }
 
 [[block]] 
 struct Enviornment {
-    clip_to_world: mat4x4<f32>;
-    world_to_clip: mat4x4<f32>;
+    inv_proj_view: mat4x4<f32>;
+    proj_view: mat4x4<f32>;
     camera: vec4<f32>;
+    near: f32;
+    far: f32;
     time: f32;
 };
 
@@ -654,26 +656,32 @@ let NUMBER_OF_STEPS: i32 = 32;
 let MIN_HIT_DISTANCE: f32 = 0.001;
 let MAX_TRACE_DISTANCE: f32 = 1000.0;
 
-[[stage(fragment)]]
-fn fs_main(in: VertexData) -> FragmentOutput {
+fn ray_hit(origin: vec3<f32>, direction: vec3<f32>, distance: f32, iteration: u32) -> FragmentOutput {
+    let current_pos = origin + direction * distance;
+    let surface_pos = normalize(current_pos - star.pos.xyz);
 
-    // Setup
+    let n = (noise(vec4<f32>(surface_pos * star.pos.w, env.time), star.granule_lacunarity, star.granule_gain, star.granule_octaves) + 1.0) * 0.5;
 
-    // Origin of the rays
-    let origin = env.camera.xyz;
-    // Clip space coordinates of this fragment
-    let frag_clip = in.uv;
+    let t1 = snoise(vec4<f32>(surface_pos * star.pos.w * star.sunspot_frequency, env.time)) - star.sunspot_cutoff;
+    let t2 = snoise(vec4<f32>((surface_pos + 1.0) * star.pos.w * star.sunspot_frequency, env.time)) - star.sunspot_cutoff;
+    let ss = (max(t1, 0.0) * max(t2, 0.0)) * star.sunspot_sharpness;
+    let total = n - ss;
+    let total = 0.5;
 
-    let frag_world = (env.clip_to_world * vec4<f32>(frag_clip, env.camera.w, 1.0)).xyz;
-    // Find world space coordinates of this fragment, subtract the origin, and normalize to get direction vector.
-    let direction = normalize(frag_world - origin);    
+    let normal = calculate_normal(current_pos);
 
-    // Output
+    let theta = 1.0 - dot(normal, -direction);
 
     var out: FragmentOutput;
-    out.color = vec4<f32>(0.0, 0.0, 0.0, 1.0);
-    out.depth = 1.0;
+    out.color = vec4<f32>(total * star.color.xyz + theta * star.shift.xyz, 1.0);
 
+    let clip_pos = env.proj_view * vec4<f32>(current_pos, 1.0);
+    out.depth = clip_pos.z / clip_pos.w;
+
+    return out;
+}
+
+fn launch_ray(origin: vec3<f32>, direction: vec3<f32>) -> FragmentOutput {
     // Ray marching
 
     var total_distance: f32 = 0.0;
@@ -685,37 +693,35 @@ fn fs_main(in: VertexData) -> FragmentOutput {
         let distance_to_closest = distance_function(current_pos);
 
         if (distance_to_closest < MIN_HIT_DISTANCE) {
-            // On hit
-            // let world_pos = origin + distance_to_closest * direction;
-            let clip_pos = env.world_to_clip * vec4<f32>(current_pos, 1.0);
-
-            let surface_pos = current_pos - star.pos.xyz;
-
-            let n = (noise(vec4<f32>(surface_pos, env.time), star.granule_lacunarity, star.granule_gain, star.granule_octaves) + 1.0) * 0.5;
-
-            let t1 = snoise(vec4<f32>(surface_pos * star.sunspot_frequency, env.time)) - star.sunspot_cutoff;
-            let t2 = snoise(vec4<f32>(((surface_pos + star.pos.w) * star.sunspot_frequency) - star.sunspot_cutoff, env.time));
-            let ss = (max(t1, 0.0) * max(t2, 0.0)) * star.sunspot_sharpness;
-            let total = n - ss;
-
-            let normal = calculate_normal(current_pos);
-
-            let theta = 1.0 - dot(normal, -direction);
-
-            out.color = vec4<f32>(total * star.color.xyz + theta * star.shift.xyz, 1.0);
-            out.depth = clip_pos.z / clip_pos.w;
-            break;
+            return ray_hit(origin, direction, total_distance, u32(i));
         } 
 
         if (total_distance > MAX_TRACE_DISTANCE || i > NUMBER_OF_STEPS) {
             // On Miss
-
             discard;
         }
 
         total_distance = total_distance + distance_to_closest;
         i = i + 1;
     }
-
+    var out: FragmentOutput;
+    out.color = vec4<f32>(0.0, 0.0, 0.0, 1.0);
+    out.depth = 1.0;
     return out;
+}
+
+[[stage(fragment)]]
+fn fs_main(in: VertexData) -> FragmentOutput {
+    // Origin of the rays
+    let origin = env.camera.xyz;
+    // Clip space coordinates of this fragment
+    let frag_clip = in.coords;
+
+    let frag_world = (env.inv_proj_view * (vec4<f32>(frag_clip, 1.0, 1.0) * env.far - vec4<f32>(frag_clip, 0.0, 1.0) * env.near)).xyz;
+
+    // let frag_world = vec3<f32>(frag_clip.xy, 0.5);
+    // Find world space coordinates of this fragment, subtract the origin, and normalize to get direction vector.
+    let direction = normalize(frag_world - origin);    
+
+    return launch_ray(origin, direction);
 }

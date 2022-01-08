@@ -4,8 +4,10 @@ pub mod mode;
 pub mod project;
 pub mod render;
 pub mod ui;
+pub mod utils;
 
 fn main() {
+    // std::env::set_var("RUST_BACKTRACE", "1");
     env_logger::init();
 
     let matches = clap::App::new("Constellation Engine")

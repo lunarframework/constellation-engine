@@ -203,7 +203,7 @@ impl UniverseRenderer {
     }
 
     pub fn render(&mut self, world: &World, camera: &Camera, settings: &RendererSettings) {
-        self.star_pipeline.update(world, camera, &settings.star);
+        self.star_pipeline.prepare(world, camera, &settings.star);
 
         if camera.width() != self.width || camera.height() != self.height {
             self.width = camera.width();
@@ -250,7 +250,7 @@ impl UniverseRenderer {
                 view: &self.depth_view,
                 depth_ops: Some(wgpu::Operations {
                     load: wgpu::LoadOp::Clear(1.0),
-                    store: false,
+                    store: true,
                 }),
                 stencil_ops: None,
             }),
