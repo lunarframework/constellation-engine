@@ -112,7 +112,7 @@ impl StarPipeline {
                 depth_stencil: Some(wgpu::DepthStencilState {
                     format: render.depth_format(),
                     depth_write_enabled: true,
-                    depth_compare: wgpu::CompareFunction::Less, // 1.
+                    depth_compare: wgpu::CompareFunction::Greater, // 1.
                     stencil: wgpu::StencilState::default(),     // 2.
                     bias: wgpu::DepthBiasState::default(),
                 }),
@@ -253,8 +253,8 @@ impl StarPipeline {
                     depth_stencil: Some(wgpu::DepthStencilState {
                         format: render.depth_format(),
                         depth_write_enabled: true,
-                        depth_compare: wgpu::CompareFunction::Less, // 1.
-                        stencil: wgpu::StencilState::default(),     // 2.
+                        depth_compare: wgpu::CompareFunction::Greater, // 1.
+                        stencil: wgpu::StencilState::default(),        // 2.
                         bias: wgpu::DepthBiasState::default(),
                     }),
                     multisample: wgpu::MultisampleState {

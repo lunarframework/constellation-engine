@@ -718,8 +718,8 @@ fn fs_main(in: VertexData) -> FragmentOutput {
     // Clip space coordinates of this fragment
     let frag_clip = in.coords;
 
-    let frag_world = (env.inv_proj_view * (vec4<f32>(frag_clip, 1.0, 1.0) * env.far - vec4<f32>(frag_clip, 0.0, 1.0) * env.near)).xyz;
-
+    // let frag_world = (env.inv_proj_view * (vec4<f32>(frag_clip, 1.0, 1.0) * env.far - vec4<f32>(frag_clip, 0.0, 1.0) * env.near)).xyz;
+    let frag_world = (env.inv_proj_view * vec4<f32>(frag_clip, env.near, 1.0)).xyz;
     // let frag_world = vec3<f32>(frag_clip.xy, 0.5);
     // Find world space coordinates of this fragment, subtract the origin, and normalize to get direction vector.
     let direction = normalize(frag_world - origin);    

@@ -144,8 +144,8 @@ impl Camera {
     }
 
     pub fn compute_projection_matrix(&self) -> Mat4 {
-        // Mat4::perspective_infinite_reverse_lh(self.fovy, self.aspect(), self.near)
-        Mat4::perspective_lh(self.fovy, self.aspect(), self.near, self.far)
+        Mat4::perspective_infinite_reverse_lh(self.fovy, self.aspect(), self.near)
+        // Mat4::perspective_lh(self.fovy, self.aspect(), self.near, self.far)
     }
 
     pub fn compute_view_matrix(&self) -> Mat4 {
