@@ -1,4 +1,4 @@
 [submodule "dealii"]
-	path = crates/spacetime/third-party/dealii
+	path = native/third-party/dealii
 	url = https://github.com/dealii/dealii.git
 	branch = dealii-9.3

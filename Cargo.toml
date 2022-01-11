@@ -20,6 +20,7 @@ num-traits = "0.2"
 wgpu = "0.11.1"
 winit = "0.25.0"
 
+spacetime = { path = "crates/spacetime", version = "0.1.0" }
 starlight = { path = "crates/starlight", version = "0.1.0" }
 
 serde = { version = "1.0.132", features = ["derive"] }
