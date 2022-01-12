@@ -14,4 +14,7 @@ Cargo.lock
 
 /native/build/
 
-/native/third-party/dealii
+/native/third-party/
+
+/native/build
+/native/packages
