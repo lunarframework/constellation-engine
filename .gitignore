@@ -11,3 +11,7 @@ Cargo.lock
 
 # Test simulation
 /test-sim/
+
+/native/build/
+
+/native/third-party/dealii

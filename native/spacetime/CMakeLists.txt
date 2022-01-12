@@ -1,4 +1,7 @@
+cmake_minimum_required(VERSION 3.22)
+
 add_library(spacetime SHARED)
+# DEAL_II_SETUP_TARGET(spacetime)
 
 # target_link_libraries(spacetime PRIVATE dealii)
 
