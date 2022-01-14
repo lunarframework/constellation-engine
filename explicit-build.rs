@@ -1,5 +1,4 @@
 use std::env;
-use std::ffi::{OsStr, OsString};
 use std::fs;
 use std::path::PathBuf;
 use std::process::Command;
@@ -19,6 +18,9 @@ fn main() {
 
         if !native.join("third-party/dealii").exists() {
             println!("Retrieving dealii from git");
+
+            fs::create_dir_all(native.join("third-party")).unwrap();
+
             // Git clone
             Command::new("git")
                 .current_dir(&manifest)
@@ -26,7 +28,7 @@ fn main() {
                 .arg("--branch")
                 .arg("dealii-9.3")
                 .arg("https://github.com/dealii/dealii.git")
-                .arg("native/third-party.dealii")
+                .arg("native/third-party/dealii")
                 .spawn()
                 .unwrap()
                 .wait()
@@ -61,7 +63,10 @@ fn main() {
 
         // Build native
 
-        env::set_var("CDYLIB_DIR", manifest.join(&target).join(&profile).as_os_str());
+        env::set_var(
+            "CDYLIB_DIR",
+            manifest.join(&target).join(&profile).as_os_str(),
+        );
 
         println!("Running cmake to config native");
 

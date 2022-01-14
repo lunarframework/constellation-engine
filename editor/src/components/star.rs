@@ -1,4 +1,4 @@
-use glam::{Vec3, Vec4};
+use glam::Vec4;
 
 pub struct Star {
     pub color: Vec4,
