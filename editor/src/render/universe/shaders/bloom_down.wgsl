@@ -10,7 +10,6 @@ var input: texture_2d<f32>;
 [[group(0), binding(2)]]
 var samp: sampler;
 
-[[block]]
 struct Uniforms {
     threshold: f32;
     knee: f32;

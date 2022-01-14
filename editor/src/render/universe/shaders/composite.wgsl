@@ -37,7 +37,6 @@ var bloom: texture_2d<f32>;
 [[group(0), binding(2)]]
 var samp: sampler;
 
-[[block]]
 struct Settings {
     exposure: f32;
     bloom_intensity: f32;

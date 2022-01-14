@@ -91,10 +91,7 @@ impl UniverseRenderer {
                         wgpu::BindGroupLayoutEntry {
                             binding: 2,
                             visibility: wgpu::ShaderStages::FRAGMENT,
-                            ty: wgpu::BindingType::Sampler {
-                                comparison: false,
-                                filtering: true,
-                            },
+                            ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
                             count: None,
                         },
                         wgpu::BindGroupLayoutEntry {
@@ -130,9 +127,10 @@ impl UniverseRenderer {
                         module: &composite_module,
                         buffers: &[],
                     },
+                    multiview: None,
                     primitive: wgpu::PrimitiveState {
                         topology: wgpu::PrimitiveTopology::TriangleList,
-                        clamp_depth: false,
+                        unclipped_depth: false,
                         conservative: false,
                         cull_mode: None,
                         front_face: wgpu::FrontFace::Cw,

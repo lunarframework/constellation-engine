@@ -29,7 +29,6 @@ struct VertexData {
     [[builtin(position)]] pos: vec4<f32>;
 };
 
-[[block]] 
 struct Enviornment {
     proj: mat4x4<f32>;
     view: mat4x4<f32>;

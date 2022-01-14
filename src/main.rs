@@ -2,6 +2,7 @@ use clap::{App, Arg};
 use std::error::Error;
 
 pub mod new;
+pub mod simulate;
 
 fn main() -> Result<(), Box<dyn Error>> {
     // std::env::set_var("RUST_BACKTRACE", "1");

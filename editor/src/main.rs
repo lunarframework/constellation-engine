@@ -100,6 +100,7 @@ use ui::Viewport;
 // }
 
 pub fn main() {
+    env_logger::init();
     // let relative_path = PathBuf::from(
     //     matches
     //         .value_of("path")

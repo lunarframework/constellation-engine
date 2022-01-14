@@ -100,9 +100,10 @@ impl StarPipeline {
                         },
                     ],
                 },
+                multiview: None,
                 primitive: wgpu::PrimitiveState {
                     topology: wgpu::PrimitiveTopology::TriangleList,
-                    clamp_depth: false,
+                    unclipped_depth: false,
                     conservative: false,
                     cull_mode: Some(wgpu::Face::Back),
                     front_face: wgpu::FrontFace::Cw,
@@ -241,9 +242,10 @@ impl StarPipeline {
                         module: &module_rays,
                         buffers: &[],
                     },
+                    multiview: None,
                     primitive: wgpu::PrimitiveState {
                         topology: wgpu::PrimitiveTopology::TriangleList,
-                        clamp_depth: false,
+                        unclipped_depth: false,
                         conservative: false,
                         cull_mode: None,
                         front_face: wgpu::FrontFace::Cw,

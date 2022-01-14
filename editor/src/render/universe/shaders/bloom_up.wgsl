@@ -12,7 +12,6 @@ var upsampled: texture_2d<f32>;
 [[group(0), binding(3)]]
 var samp: sampler;
 
-[[block]]
 struct Uniforms {
     lod: f32;
 };

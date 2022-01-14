@@ -597,7 +597,6 @@ fn vs_main(in: VertexInput) -> VertexData {
     return out;
 }
 
-[[block]] 
 struct Enviornment {
     inv_proj_view: mat4x4<f32>;
     proj_view: mat4x4<f32>;
@@ -610,7 +609,6 @@ struct Enviornment {
 [[group(0), binding(0)]]
 var<uniform> env: Enviornment;
 
-[[block]] 
 struct Star {
     pos: vec4<f32>;
     color: vec4<f32>;
