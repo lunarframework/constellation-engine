@@ -1,13 +1,16 @@
-use crate::app::{App, AppEvent, AppState};
-use crate::components::{Star, Transform};
-use crate::project::Project;
-use crate::render::{BloomSettings, RendererSettings, StarSettings, UniverseRenderer};
-use crate::ui::Viewport;
-use clap::ArgMatches;
+pub mod app;
+pub mod components;
+pub mod render;
+pub mod ui;
+
+use app::{App, AppEvent, AppState};
+use components::{Star, Transform};
 use glam::Vec4;
+use render::{BloomSettings, RendererSettings, StarSettings, UniverseRenderer};
 use starlight::prelude::*;
 use std::path::PathBuf;
 use std::process::exit;
+use ui::Viewport;
 
 fn star_editor(ctx: &egui::CtxRef, star: &mut Star) {
     egui::Window::new("Star Editor")
@@ -98,29 +101,29 @@ fn star_editor(ctx: &egui::CtxRef, star: &mut Star) {
         });
 }
 
-pub fn open(matches: &ArgMatches) {
-    let relative_path = PathBuf::from(
-        matches
-            .value_of("path")
-            .expect("Failed to parse relative path"),
-    );
+pub fn main() {
+    // let relative_path = PathBuf::from(
+    //     matches
+    //         .value_of("path")
+    //         .expect("Failed to parse relative path"),
+    // );
 
-    let working_directory = std::env::current_dir().expect("Failed to find working directory");
+    // let working_directory = std::env::current_dir().expect("Failed to find working directory");
 
-    let project_directory = match working_directory.join(relative_path).canonicalize() {
-        Ok(dir) => dir,
-        Err(error) => {
-            eprintln!("Failed to canonicalize path");
-            eprintln!("{}", error);
+    // let project_directory = match working_directory.join(relative_path).canonicalize() {
+    //     Ok(dir) => dir,
+    //     Err(error) => {
+    //         eprintln!("Failed to canonicalize path");
+    //         eprintln!("{}", error);
 
-            match error.raw_os_error() {
-                Some(code) => exit(code),
-                None => exit(1),
-            }
-        }
-    };
+    //         match error.raw_os_error() {
+    //             Some(code) => exit(code),
+    //             None => exit(1),
+    //         }
+    //     }
+    // };
 
-    let project = Project::load(project_directory);
+    // let project = Project::load(project_directory);
 
     // Initialize the app
     let app = App::new();
@@ -128,9 +131,7 @@ pub fn open(matches: &ArgMatches) {
     // Retrieve the app context
     let context = app.context();
 
-    context
-        .window()
-        .set_title(format!("Constellation Engine - {}", project.config.name).as_str());
+    context.window().set_title("Constellation Engine");
 
     let render = context.render();
 

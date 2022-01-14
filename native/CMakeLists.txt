@@ -31,4 +31,4 @@ set(CMAKE_CXX_STANDARD_REQUIRED True)
 
 # set(SHARED_LIB_INSTALL_DIR $ENV{CONSTELLATION_TARGET_DIR})
 
-add_subdirectory(spacetime)
+add_subdirectory(solver)

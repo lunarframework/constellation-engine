@@ -8,19 +8,13 @@ edition = "2021"
 
 [dependencies]
 
-clap = "2.34.0"
-core = { path = "crates/core", version = "0.1.0" }
+constellation-base = { path = "base", version = "0.1.0" }
+
+clap = "3.0.7"
 env_logger = "0.9.0"
 
-[features]
-default = ["native"]
-native = []
 
-[[bin]]
-name = "constellation-engine"
-path = "src/main.rs"
-test = false
-bench = false
+[features]
 
 
 [[bin]]
@@ -31,4 +25,4 @@ bench = false
 
 [workspace]
 
-members = ["crates/*"]
+members = ["crates/*", "base", "editor"]

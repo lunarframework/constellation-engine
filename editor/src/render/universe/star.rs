@@ -381,7 +381,7 @@ impl StarPipeline {
             .min_uniform_buffer_offset_alignment as usize;
 
         let size = Layout::new::<StarBufferRays>().pad_to_align().size();
-        let offset = crate::utils::align(size, uniform_buffer_align);
+        let offset = constellation_base::math::align(size, uniform_buffer_align);
 
         if self.star_data_rays.len() > self.star_bind_groups_rays.len() {
             self.star_buffer_rays = self.render.device().create_buffer(&wgpu::BufferDescriptor {
