@@ -9,7 +9,7 @@ fn main() {
 
     // println!("cargo:rerun-if-changed=build.rs");
 
-    if cfg!(all(any(windows, unix), feature = "native")) {
+    if cfg!(any(windows, unix)) {
         let manifest = PathBuf::from(env::var("CARGO_MANIFEST_DIR").unwrap());
         let target = PathBuf::from(env::var("CARGO_TARGET_DIR").unwrap_or(String::from("target")));
         let profile = PathBuf::from(env::var("PROFILE").unwrap_or(String::from("debug")));
