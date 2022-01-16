@@ -371,24 +371,42 @@ extern "C" void run_solver_3d(Solver3d solver)
                 auto ricci33 = COMPUTE_RICCI(3, 3);
 
 #define RICCI2(indices) ricci##indices
-#define RICCI1(indices) RICCI1(indices)
+#define RICCI1(indices) RICCI2(indices)
 #define RICCI(a, b) RICCI1(INDICES(a, b))
 
-                // Compute RHS's
+                auto ktrace = MINV(1, 1) * KEXT_VALUE(1, 1) + 2.0 * MINV(1, 2) * KEXT_VALUE(1, 2) + 2.0 * MINV(1, 3) * KEXT_VALUE(1, 3) +
+                              MINV(2, 2) * KEXT_VALUE(2, 2) + 2.0 * MINV(2, 3) * KEXT_VALUE(2, 3) +
+                              MINV(3, 3) * KEXT_VALUE(3, 3);
 
-                auto m11_rhs = -2.0 * KEXT_VALUE(1, 1) * LAPSE;
-                auto m12_rhs = -2.0 * KEXT_VALUE(1, 2) * LAPSE;
-                auto m13_rhs = -2.0 * KEXT_VALUE(1, 3) * LAPSE;
-                auto m22_rhs = -2.0 * KEXT_VALUE(2, 2) * LAPSE;
-                auto m23_rhs = -2.0 * KEXT_VALUE(2, 3) * LAPSE;
-                auto m33_rhs = -2.0 * KEXT_VALUE(3, 3) * LAPSE;
+#define KTRACE ktrace
 
-                auto k11_rhs = -2.0 * kext11_values[q_index] * lapse[q_index];
-                auto k12_rhs = -2.0 * kext12_values[q_index] * lapse[q_index];
-                auto k13_rhs = -2.0 * kext13_values[q_index] * lapse[q_index];
-                auto k22_rhs = -2.0 * kext22_values[q_index] * lapse[q_index];
-                auto k23_rhs = -2.0 * kext23_values[q_index] * lapse[q_index];
-                auto k33_rhs = -2.0 * kext33_values[q_index] * lapse[q_index];
+                // Compute Metric RHS's
+
+#define METRIC_RHS(i, j) -2.0 * KEXT_VALUE(i, j) * LAPSE
+
+                auto m11_rhs = METRIC_RHS(1, 1);
+                auto m12_rhs = METRIC_RHS(1, 2);
+                auto m13_rhs = METRIC_RHS(1, 3);
+                auto m22_rhs = METRIC_RHS(2, 2);
+                auto m23_rhs = METRIC_RHS(2, 3);
+                auto m33_rhs = METRIC_RHS(3, 3);
+
+                // Compute kext RHS's
+
+#define KTRACE_BY_KEXT(i, j) KTRACE *KEXT_VALUE(i, j)
+#define KEXT_DOT_KEXT_TERM(i, j, k, l) KEXT_VALUE(i, k) * MINV(k, l) * KEXT_VALUE(l, j)
+#define KEXT_DOT_KEXT(i, j) KEXT_DOT_KEXT_TERM(i, j, 1, 1) + KEXT_DOT_KEXT_TERM(i, j, 1, 2) + KEXT_DOT_KEXT_TERM(i, j, 1, 3) +     \
+                                KEXT_DOT_KEXT_TERM(i, j, 2, 1) + KEXT_DOT_KEXT_TERM(i, j, 2, 2) + KEXT_DOT_KEXT_TERM(i, j, 3, 3) + \
+                                KEXT_DOT_KEXT_TERM(i, j, 3, 1) + KEXT_DOT_KEXT_TERM(i, j, 3, 2) + KEXT_DOT_KEXT_TERM(i, j, 3, 3)
+
+#define KEXT_RHS(i, j) LAPSE *(RICCI(i, j) - 2.0 * KEXT_DOT_KEXT(i, j) + KTRACE_BY_KEXT(i, j)) - LAPSE_HESSIAN(i, j) - 0.0 /* SOURCE TERMS */
+
+                auto k11_rhs = KEXT_RHS(1, 1);
+                auto k12_rhs = KEXT_RHS(1, 2);
+                auto k13_rhs = KEXT_RHS(1, 3);
+                auto k22_rhs = KEXT_RHS(2, 2);
+                auto k23_rhs = KEXT_RHS(2, 3);
+                auto k33_rhs = KEXT_RHS(3, 3);
 
                 // Update cell contributions
 
