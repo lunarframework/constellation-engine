@@ -10,6 +10,7 @@
 #include <deal.II/dofs/dof_renumbering.h>
 #include <deal.II/fe/fe_q.h>
 #include <deal.II/fe/fe_values.h>
+#include <deal.II/lac/affine_constraints.h>
 #include <deal.II/lac/vector.h>
 #include <deal.II/lac/full_matrix.h>
 #include <deal.II/lac/sparse_matrix.h>
@@ -72,15 +73,15 @@ extern "C" void run_solver_3d(Solver3d solver)
     const FE_Q<3> fe{1};
     dof_handler.distribute_dofs(fe);
 
+    // Renumber dofs
+
+    DoFRenumbering::Cuthill_McKee(dof_handler);
+
     QGauss<3> quadrature_formula{fe.degree + 1};
 
     FEValues<3> fe_values{fe,
                           quadrature_formula,
                           update_values | update_gradients | update_JxW_values};
-
-    // Renumber dofs
-
-    DoFRenumbering::Cuthill_McKee(dof_handler);
 
     // Setup
 
@@ -135,6 +136,20 @@ extern "C" void run_solver_3d(Solver3d solver)
     Vector<double> kext22_rhs{n_dofs};
     Vector<double> kext23_rhs{n_dofs};
     Vector<double> kext33_rhs{n_dofs};
+
+    Vector<double> metric11_rhs_sum{n_dofs};
+    Vector<double> metric12_rhs_sum{n_dofs};
+    Vector<double> metric13_rhs_sum{n_dofs};
+    Vector<double> metric22_rhs_sum{n_dofs};
+    Vector<double> metric23_rhs_sum{n_dofs};
+    Vector<double> metric33_rhs_sum{n_dofs};
+
+    Vector<double> kext11_rhs_sum{n_dofs};
+    Vector<double> kext12_rhs_sum{n_dofs};
+    Vector<double> kext13_rhs_sum{n_dofs};
+    Vector<double> kext22_rhs_sum{n_dofs};
+    Vector<double> kext23_rhs_sum{n_dofs};
+    Vector<double> kext33_rhs_sum{n_dofs};
 
     // Scratch buffers
 
@@ -225,17 +240,24 @@ extern "C" void run_solver_3d(Solver3d solver)
 
         // Some Defines
 
+#define ORDER_INDICES_00 00
+#define ORDER_INDICES_01 01
+#define ORDER_INDICES_02 02
+#define ORDER_INDICES_03 03
+#define ORDER_INDICES_10 01
 #define ORDER_INDICES_11 11
 #define ORDER_INDICES_12 12
 #define ORDER_INDICES_13 13
+#define ORDER_INDICES_20 02
 #define ORDER_INDICES_21 12
 #define ORDER_INDICES_22 22
 #define ORDER_INDICES_23 23
+#define ORDER_INDICES_30 03
 #define ORDER_INDICES_31 13
 #define ORDER_INDICES_32 23
 #define ORDER_INDICES_33 33
 
-#define INDICES(i, j) ORDER_INDICES_##i##j
+#define INDICES(a, b) ORDER_INDICES_##a##b
 
         // Loop through cells
         for (const auto &cell : dof_handler.active_cell_iterators())
@@ -393,13 +415,52 @@ extern "C" void run_solver_3d(Solver3d solver)
 
                 // Compute kext RHS's
 
+#define ENERGY_MOMENTUM(a, b) 0.0
+
+#define COMPUTE_MOMENTUM_FLUX(i, j) METRIC_VALUE(i, 1) * METRIC_VALUE(j, 1) * ENERGY_MOMENTUM(1, 1) +     \
+                                        METRIC_VALUE(i, 1) * METRIC_VALUE(j, 2) * ENERGY_MOMENTUM(1, 2) + \
+                                        METRIC_VALUE(i, 1) * METRIC_VALUE(j, 3) * ENERGY_MOMENTUM(1, 3) + \
+                                        METRIC_VALUE(i, 2) * METRIC_VALUE(j, 1) * ENERGY_MOMENTUM(2, 1) + \
+                                        METRIC_VALUE(i, 2) * METRIC_VALUE(j, 2) * ENERGY_MOMENTUM(2, 2) + \
+                                        METRIC_VALUE(i, 2) * METRIC_VALUE(j, 3) * ENERGY_MOMENTUM(2, 3) + \
+                                        METRIC_VALUE(i, 3) * METRIC_VALUE(j, 1) * ENERGY_MOMENTUM(3, 1) + \
+                                        METRIC_VALUE(i, 3) * METRIC_VALUE(j, 2) * ENERGY_MOMENTUM(3, 2) + \
+                                        METRIC_VALUE(i, 3) * METRIC_VALUE(j, 3) * ENERGY_MOMENTUM(3, 3)
+
+                auto energy_density = LAPSE * LAPSE * ENERGY_MOMENTUM(0, 0);
+
+                /// Momentum density
+                /// #define MOMENTUM_DENSITY(i)
+
+                auto momentum_flux11 = COMPUTE_MOMENTUM_FLUX(1, 1);
+                auto momentum_flux12 = COMPUTE_MOMENTUM_FLUX(1, 2);
+                auto momentum_flux13 = COMPUTE_MOMENTUM_FLUX(1, 3);
+                auto momentum_flux22 = COMPUTE_MOMENTUM_FLUX(2, 2);
+                auto momentum_flux23 = COMPUTE_MOMENTUM_FLUX(2, 3);
+                auto momentum_flux33 = COMPUTE_MOMENTUM_FLUX(3, 3);
+
+#define ENERGY_DENSITY energy_density
+
+#define MOMENTUM_FLUX2(indices) momentum_flux##indices
+#define MOMENTUM_FLUX1(indices) MOMENTUM_FLUX2(indices)
+#define MOMENTUM_FLUX(a, b) MOMENTUM_FLUX1(INDICES(a, b))
+
+#define COMPUTE_MOMENTUM_FLUX_TRACE MINV(1, 1) * MOMENTUM_FLUX(1, 1) + MINV(1, 2) * MOMENTUM_FLUX(1, 2) + MINV(1, 3) * MOMENTUM_FLUX(1, 3) +     \
+                                        MINV(2, 1) * MOMENTUM_FLUX(2, 1) + MINV(1, 2) * MOMENTUM_FLUX(2, 2) + MINV(2, 3) * MOMENTUM_FLUX(2, 3) + \
+                                        MINV(3, 1) * MOMENTUM_FLUX(3, 1) + MINV(3, 2) * MOMENTUM_FLUX(3, 2) + MINV(3, 3) * MOMENTUM_FLUX(3, 3)
+
+                auto momentum_flux_trace = COMPUTE_MOMENTUM_FLUX_TRACE;
+
+#define MOMENTUM_FLUX_TRACE momentum_flux_trace
+
 #define KTRACE_BY_KEXT(i, j) KTRACE *KEXT_VALUE(i, j)
 #define KEXT_DOT_KEXT_TERM(i, j, k, l) KEXT_VALUE(i, k) * MINV(k, l) * KEXT_VALUE(l, j)
 #define KEXT_DOT_KEXT(i, j) KEXT_DOT_KEXT_TERM(i, j, 1, 1) + KEXT_DOT_KEXT_TERM(i, j, 1, 2) + KEXT_DOT_KEXT_TERM(i, j, 1, 3) +     \
                                 KEXT_DOT_KEXT_TERM(i, j, 2, 1) + KEXT_DOT_KEXT_TERM(i, j, 2, 2) + KEXT_DOT_KEXT_TERM(i, j, 3, 3) + \
                                 KEXT_DOT_KEXT_TERM(i, j, 3, 1) + KEXT_DOT_KEXT_TERM(i, j, 3, 2) + KEXT_DOT_KEXT_TERM(i, j, 3, 3)
 
-#define KEXT_RHS(i, j) LAPSE *(RICCI(i, j) - 2.0 * KEXT_DOT_KEXT(i, j) + KTRACE_BY_KEXT(i, j)) - LAPSE_HESSIAN(i, j) - 0.0 /* SOURCE TERMS */
+#define KEXT_RHS(i, j) LAPSE *(RICCI(i, j) - 2.0 * KEXT_DOT_KEXT(i, j) + KTRACE_BY_KEXT(i, j)) - LAPSE_HESSIAN(i, j) - \
+                           8.0 * numbers::PI *LAPSE *(MOMENTUM_FLUX(i, j) - 1.0 / 2.0 * METRIC_VALUE(i, j) * (MOMENTUM_FLUX_TRACE - ENERGY_DENSITY))
 
                 auto k11_rhs = KEXT_RHS(1, 1);
                 auto k12_rhs = KEXT_RHS(1, 2);
@@ -456,6 +517,53 @@ extern "C" void run_solver_3d(Solver3d solver)
                 kext33_rhs(local_dof_indices[i]) += cell_k33_rhs(i);
             }
         }
+
+        SolverControl solver_control(100, 1e-12);
+        SolverCG<Vector<double>> solver(solver_control);
+
+        // Update Metric
+
+        shape_matrix.vmult(metric11_rhs_sum, metric11);
+        metric11_rhs_sum.sadd(delta_time, metric11_rhs);
+        shape_matrix.vmult(metric12_rhs_sum, metric12);
+        metric12_rhs_sum.sadd(delta_time, metric12_rhs);
+        shape_matrix.vmult(metric13_rhs_sum, metric13);
+        metric13_rhs_sum.sadd(delta_time, metric13_rhs);
+        shape_matrix.vmult(metric22_rhs_sum, metric22);
+        metric22_rhs_sum.sadd(delta_time, metric22_rhs);
+        shape_matrix.vmult(metric23_rhs_sum, metric23);
+        metric23_rhs_sum.sadd(delta_time, metric23_rhs);
+        shape_matrix.vmult(metric33_rhs_sum, metric33);
+        metric33_rhs_sum.sadd(delta_time, metric33_rhs);
+
+        solver.solve(shape_matrix, metric11, metric11_rhs_sum, PreconditionIdentity());
+        solver.solve(shape_matrix, metric12, metric12_rhs_sum, PreconditionIdentity());
+        solver.solve(shape_matrix, metric13, metric13_rhs_sum, PreconditionIdentity());
+        solver.solve(shape_matrix, metric22, metric22_rhs_sum, PreconditionIdentity());
+        solver.solve(shape_matrix, metric23, metric23_rhs_sum, PreconditionIdentity());
+        solver.solve(shape_matrix, metric33, metric33_rhs_sum, PreconditionIdentity());
+
+        // Update extrinsic curvature
+
+        shape_matrix.vmult(kext11_rhs_sum, kext11);
+        kext11_rhs_sum.sadd(delta_time, kext11_rhs);
+        shape_matrix.vmult(kext12_rhs_sum, kext12);
+        kext12_rhs_sum.sadd(delta_time, kext12_rhs);
+        shape_matrix.vmult(kext13_rhs_sum, kext13);
+        kext13_rhs_sum.sadd(delta_time, kext13_rhs);
+        shape_matrix.vmult(kext22_rhs_sum, kext22);
+        kext22_rhs_sum.sadd(delta_time, kext22_rhs);
+        shape_matrix.vmult(kext23_rhs_sum, kext23);
+        kext23_rhs_sum.sadd(delta_time, kext23_rhs);
+        shape_matrix.vmult(kext33_rhs_sum, kext33);
+        kext33_rhs_sum.sadd(delta_time, kext33_rhs);
+
+        solver.solve(shape_matrix, kext11, kext11_rhs_sum, PreconditionIdentity());
+        solver.solve(shape_matrix, kext12, kext12_rhs_sum, PreconditionIdentity());
+        solver.solve(shape_matrix, kext13, kext13_rhs_sum, PreconditionIdentity());
+        solver.solve(shape_matrix, kext22, kext22_rhs_sum, PreconditionIdentity());
+        solver.solve(shape_matrix, kext23, kext23_rhs_sum, PreconditionIdentity());
+        solver.solve(shape_matrix, kext33, kext33_rhs_sum, PreconditionIdentity());
     }
 }
 
