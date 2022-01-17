@@ -26,7 +26,7 @@ pub fn run(matches: &ArgMatches) -> Result<(), Box<dyn Error>> {
             .ok_or("Failed to convert project directory to name")?,
     );
 
-    Project::init(project_directory, name);
+    Project::init(project_directory, name)?;
 
     Ok(())
 }
