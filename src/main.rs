@@ -21,22 +21,17 @@ fn main() -> Result<(), Box<dyn Error>> {
             .arg(Arg::new("path")
                 .required(true)
                 .index(1)))
-        .subcommand(App::new("open")
-            .about("Opens a simulation folder for edisting")
+        .subcommand(App::new("simulate")
+            .about("Simulate a project")
             .author("Lukas M.")
             .arg(Arg::new("path")
                 .required(true)
                 .index(1)))
-        .subcommand(App::new("test")
-            .about("Test")
-            .author("Lukas M."))
-        .subcommand(App::new("welcome")
-            .about("Opens simple document detailing some of Constellation Engine's capabilities")
-            .author("Lukas M."))
         .get_matches();
 
     match matches.subcommand() {
         Some(("new", sub_matches)) => new::run(sub_matches)?,
+        Some(("simulate", sub_matches)) => simulate::run(sub_matches)?,
         _ => {}
     };
 

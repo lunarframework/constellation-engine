@@ -1,4 +1,7 @@
 pub mod project;
+pub mod star;
+
+pub use star::Star;
 
 pub mod math {
     use num_traits::Zero;

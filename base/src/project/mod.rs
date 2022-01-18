@@ -25,7 +25,7 @@ impl Project {
                 name,
                 ..Default::default()
             },
-            data: Data {},
+            data: Data::default(),
             views: Vec::new(),
         };
 

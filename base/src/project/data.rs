@@ -1,4 +1,8 @@
 use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Deserialize, Serialize)]
-pub struct Data {}
+use crate::Star;
+
+#[derive(Debug, Default, Deserialize, Serialize)]
+pub struct Data {
+    pub stars: Vec<Star>,
+}

@@ -19,11 +19,13 @@
 #include <deal.II/lac/precondition.h>
 
 #include "base/grids.h"
-#include "generic_3d/solver_types.h"
+#include "base/defines.h"
+
+typedef struct GenericSolver_T *GenericSolver;
 
 #define CUBE_GRID 0
 
-struct Solver3d_T
+struct GenericSolver_T
 {
     // Settings
     union
@@ -37,9 +39,9 @@ struct Solver3d_T
     uint32_t n_vertices;
 };
 
-extern "C" Solver3d create_solver_3d()
+SOLVER_API GenericSolver create_generic_solver()
 {
-    Solver3d_T *p_solver = new Solver3d_T{};
+    GenericSolver_T *p_solver = new GenericSolver_T{};
 
     p_solver->grid_type = CUBE_GRID;
     p_solver->grid.cube.width = 1.0;
@@ -50,13 +52,7 @@ extern "C" Solver3d create_solver_3d()
     return p_solver;
 }
 
-extern "C" void set_solver_3d_cube_grid(Solver3d solver, CubeGrid cube)
-{
-    solver->grid_type = CUBE_GRID;
-    solver->grid.cube = cube;
-}
-
-extern "C" void run_solver_3d(Solver3d solver)
+SOLVER_API void run_generic_solver(GenericSolver solver)
 {
     using namespace dealii;
 
@@ -89,7 +85,7 @@ extern "C" void run_solver_3d(Solver3d solver)
     const auto n_dofs_per_cell = fe.n_dofs_per_cell();
 
     double delta_time = 1.0;
-    uint32_t max_iteration = 100;
+    uint32_t max_iteration = 0;
 
     // Spacetime
 
@@ -300,17 +296,9 @@ extern "C" void run_solver_3d(Solver3d solver)
 
                         // Stupid workaround to use macro in another macro
 
-#define METRIC_VALUE2(indices) metric##indices##_values##[q_index]
-#define METRIC_VALUE1(indices) METRIC_VALUE2(indices)
-#define METRIC_VALUE(a, b) METRIC_VALUE1(INDICES(a, b))
-
-#define METRIC_GRADIENT2(indices, c) metric##indices##_gradients##[q_index][c - 1]
-#define METRIC_GRADIENT1(indices, c) METRIC_GRADIENT2(indices, c)
-#define METRIC_GRADIENT(a, b, c) METRIC_GRADIENT1(INDICES(a, b), c)
-
-#define METRIC_HESSIAN2(indices, c, d) metric##indices##_hessians##[q_index][TableIndices<2>(c - 1, d - 1)]
-#define METRIC_HESSIAN1(indices, c, d) METRIC_HESSIAN2(indices, c, d)
-#define METRIC_HESSSIAN(a, b, c, d) METRIC_HESSIAN1(INDICES(a, b), c, d)
+#define METRIC_VALUE(a, b) CONCAT(CONCAT(metric, INDICES(a, b)), _values[q_index])
+#define METRIC_GRADIENT(a, b, c) CONCAT(CONCAT(metric, INDICES(a, b)), _gradients[q_index][c - 1])
+#define METRIC_HESSSIAN(a, b, c, d) CONCAT(CONCAT(metric, INDICES(a, b)), _hessians[q_index][TableIndices<2>(c - 1, d - 1)])
 
 #define KEXT_VALUE2(indices) kext##indices##_values[q_index]
 #define KEXT_VALUE1(indices) KEXT_VALUE2(indices)
@@ -567,7 +555,7 @@ extern "C" void run_solver_3d(Solver3d solver)
     }
 }
 
-extern "C" void destroy_solver_3d(Solver3d solver)
+SOLVER_API void destroy_generic_solver(GenericSolver solver)
 {
-    delete (Solver3d_T *)solver;
+    delete (GenericSolver_T *)solver;
 }
