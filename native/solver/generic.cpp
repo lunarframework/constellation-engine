@@ -1,10 +1,13 @@
 #include <cstdlib>
 #include <cstdint>
 
+#include <vector>
+
 #include <deal.II/base/quadrature_lib.h>
 #include <deal.II/base/tensor.h>
 #include <deal.II/grid/tria.h>
 #include <deal.II/grid/grid_generator.h>
+#include <deal.II/grid/grid_tools.h>
 #include <deal.II/dofs/dof_handler.h>
 #include <deal.II/dofs/dof_tools.h>
 #include <deal.II/dofs/dof_renumbering.h>
@@ -20,6 +23,7 @@
 
 #include "base/grids.h"
 #include "base/defines.h"
+#include "base/nbody.h"
 
 typedef struct GenericSolver_T *GenericSolver;
 
@@ -33,6 +37,10 @@ struct GenericSolver_T
         CubeGrid cube;
     } grid;
     int grid_type;
+
+    // Objevts
+
+    std::vector<NBody> nbodies;
 
     // Output
 
@@ -49,7 +57,14 @@ SOLVER_API GenericSolver create_generic_solver()
     p_solver->grid.cube.depth = 1.0;
     p_solver->grid.cube.refinement = 0;
 
+    p_solver->nbodies = std::vector<NBody>();
+
     return p_solver;
+}
+
+SOLVER_API void generic_solver_add_nbody(GenericSolver solver, NBody nbody)
+{
+    solver->nbodies.push_back(nbody);
 }
 
 SOLVER_API void run_generic_solver(GenericSolver solver)
@@ -62,6 +77,8 @@ SOLVER_API void run_generic_solver(GenericSolver solver)
 
     GridGenerator::hyper_rectangle(triangulation, Point<3>{-1.0, -1.0, -1.0}, Point<3>{1.0, 1.0, 1.0});
     triangulation.refine_global(5);
+
+    GridTools::Cache<3, 3> cache{triangulation};
 
     // Assign dofs
     DoFHandler<3> dof_handler{triangulation};
@@ -180,6 +197,19 @@ SOLVER_API void run_generic_solver(GenericSolver solver)
     auto lapse_values = std::vector<double>(n_dofs);
     auto lapse_hessians = std::vector<Tensor<2, 3, double>>(n_dofs);
 
+    auto energy_density = std::vector<double>(n_dofs);
+
+    auto momentum_density1 = std::vector<double>(n_dofs);
+    auto momentum_density2 = std::vector<double>(n_dofs);
+    auto momentum_density3 = std::vector<double>(n_dofs);
+
+    auto momentum_flux11_values = std::vector<double>(n_dofs);
+    auto momentum_flux12_values = std::vector<double>(n_dofs);
+    auto momentum_flux13_values = std::vector<double>(n_dofs);
+    auto momentum_flux22_values = std::vector<double>(n_dofs);
+    auto momentum_flux23_values = std::vector<double>(n_dofs);
+    auto momentum_flux33_values = std::vector<double>(n_dofs);
+
     FullMatrix<double> cell_shape_matrix(n_dofs_per_cell, n_dofs_per_cell);
 
     Vector<double> cell_m11_rhs(n_dofs_per_cell);
@@ -198,9 +228,46 @@ SOLVER_API void run_generic_solver(GenericSolver solver)
 
     std::vector<types::global_dof_index> local_dof_indices(n_dofs_per_cell);
 
+    auto nbody_points = std::vector<Point<3, double>>();
+
     // Time loop
     for (uint32_t i = 0; i < max_iteration; i++)
     {
+
+        // Update Source Terms
+
+        {
+            nbody_points.clear();
+            nbody_points.reserve(solver->nbodies.size());
+
+            for (auto &nbody : solver->nbodies)
+            {
+                nbody_points.push_back(Point<3, double>(nbody.x, nbody.y, nbody.z));
+            }
+
+            auto [cells, qpoints, indices] = GridTools::compute_point_locations(cache, nbody_points);
+
+            for (int cell_index = 0; cell_index < cells.size(); cell_index++)
+            {
+                for (int point_index = 0; point_index < qpoints[cell_index].size(); point_index++)
+                {
+                    double total_distance = 0.0;
+
+                    for (int vertex_index = 0; vertex_index < cells[cell_index]->n_vertices(); vertex_index++)
+                    {
+                        double distance = qpoints[cell_index][point_index].distance(cells[cell_index]->vertex(vertex_index));
+                        total_distance += distance;
+                    }
+
+                    for (int vertex_index = 0; vertex_index < cells[cell_index]->n_vertices(); vertex_index++)
+                    {
+                        double weight = qpoints[cell_index][point_index].distance(cells[cell_index]->vertex(vertex_index)) / total_distance;
+
+                        // Add to various source terms using data from nbodies, and multiply by weight
+                    }
+                }
+            }
+        }
 
         // Update values
         fe_values.get_function_values(metric11, metric11_values);
