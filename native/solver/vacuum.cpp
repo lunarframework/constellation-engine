@@ -30,11 +30,11 @@
 #include "base/defines.h"
 #include "base/nbody.h"
 
-typedef struct GenericSolver_T *GenericSolver;
+typedef struct VacuumSolver_T *VacuumSolver;
 
 #define CUBE_GRID 0
 
-struct GenericSolver_T
+struct VacuumSolver_T
 {
     // Settings
     union
@@ -43,18 +43,14 @@ struct GenericSolver_T
     } grid;
     int grid_type;
 
-    // Objevts
-
-    std::vector<NBody> nbodies;
-
     // Output
 
     uint32_t n_vertices;
 };
 
-SOLVER_API GenericSolver create_generic_solver()
+SOLVER_API VacuumSolver create_vacuum_solver()
 {
-    GenericSolver_T *p_solver = new GenericSolver_T{};
+    VacuumSolver_T *p_solver = new VacuumSolver_T{};
 
     p_solver->grid_type = CUBE_GRID;
     p_solver->grid.cube.width = 1.0;
@@ -62,17 +58,10 @@ SOLVER_API GenericSolver create_generic_solver()
     p_solver->grid.cube.depth = 1.0;
     p_solver->grid.cube.refinement = 0;
 
-    p_solver->nbodies = std::vector<NBody>();
-
     return p_solver;
 }
 
-SOLVER_API void generic_solver_add_nbody(GenericSolver solver, NBody nbody)
-{
-    solver->nbodies.push_back(nbody);
-}
-
-SOLVER_API void run_generic_solver(GenericSolver solver)
+SOLVER_API void run_vacuum_solver(VacuumSolver solver)
 {
     using namespace dealii;
 
@@ -224,23 +213,6 @@ SOLVER_API void run_generic_solver(GenericSolver solver)
     auto cell_lapse_rhs = Vector<double>(n_dofs_per_cell);
 
     ////////////////////////////////
-    // Source Terms ////////////////
-    ////////////////////////////////
-
-    auto energy_density = std::vector<double>(n_active_cells * n_quadrature_points_per_cell, 0.0);
-
-    auto momentum_density_1 = std::vector<double>(n_active_cells * n_quadrature_points_per_cell, 0.0);
-    auto momentum_density_2 = std::vector<double>(n_active_cells * n_quadrature_points_per_cell, 0.0);
-    auto momentum_density_3 = std::vector<double>(n_active_cells * n_quadrature_points_per_cell, 0.0);
-
-    auto momentum_flux_11 = std::vector<double>(n_active_cells * n_quadrature_points_per_cell, 0.0);
-    auto momentum_flux_12 = std::vector<double>(n_active_cells * n_quadrature_points_per_cell, 0.0);
-    auto momentum_flux_13 = std::vector<double>(n_active_cells * n_quadrature_points_per_cell, 0.0);
-    auto momentum_flux_22 = std::vector<double>(n_active_cells * n_quadrature_points_per_cell, 0.0);
-    auto momentum_flux_23 = std::vector<double>(n_active_cells * n_quadrature_points_per_cell, 0.0);
-    auto momentum_flux_33 = std::vector<double>(n_active_cells * n_quadrature_points_per_cell, 0.0);
-
-    ////////////////////////////////
     // Tensor Defines //////////////
     ////////////////////////////////
 
@@ -369,45 +341,6 @@ SOLVER_API void run_generic_solver(GenericSolver solver)
             SolverCG<Vector<double>> cg(solver_control);
 
             cg.solve(shape_matrix, lapse, lapse_rhs, PreconditionIdentity{});
-        }
-
-        //////////////////////////////////
-        // Source Terms //////////////////
-        //////////////////////////////////
-
-        {
-            nbody_points.clear();
-            nbody_points.reserve(solver->nbodies.size());
-
-            for (auto &nbody : solver->nbodies)
-            {
-                nbody_points.push_back(Point<3, double>(nbody.x, nbody.y, nbody.z));
-            }
-
-            auto [cells, qpoints, indices] = GridTools::compute_point_locations(cache, nbody_points);
-
-            for (int cell_index = 0; cell_index < cells.size(); cell_index++)
-            {
-                auto global_cell_index = cells[cell_index]->index();
-                for (int point_index = 0; point_index < qpoints[cell_index].size(); point_index++)
-                {
-                    for (const auto q_index : fe_values.quadrature_point_indices())
-                    {
-                        auto vector_index = global_cell_index * n_quadrature_points_per_cell + q_index;
-
-                        energy_density[vector_index] = 0.0;
-                        momentum_density_1[vector_index] = 0.0;
-                        momentum_density_2[vector_index] = 0.0;
-                        momentum_density_3[vector_index] = 0.0;
-                        momentum_flux_11[vector_index] = 0.0;
-                        momentum_flux_12[vector_index] = 0.0;
-                        momentum_flux_13[vector_index] = 0.0;
-                        momentum_flux_22[vector_index] = 0.0;
-                        momentum_flux_23[vector_index] = 0.0;
-                        momentum_flux_33[vector_index] = 0.0;
-                    }
-                }
-            }
         }
 
         /////////////////////////////////////////
@@ -557,10 +490,6 @@ SOLVER_API void run_generic_solver(GenericSolver solver)
 
 #define EXTRINSIC_TRACE extrinsic_trace
 
-#define ENERGY_DENSITY_VALUE energy_density[q_index_offset + q_index]
-#define MOMENTUM_DENSITY_VALUE(i) momentum_density_##i##[q_index_offset + q_index]
-#define MOMENTUM_FLUX_VALUE(a, b) CONCAT(CONCAT(momentum_flux_, INDICES(a, b)), [q_index_offset + q_index])
-
 #define METRIC_RHS(i, j) -2.0 * EXTRINSIC_VALUE(i, j) * LAPSE_VALUE
 
                 auto metric_rhs_11 = METRIC_RHS(1, 1);
@@ -572,22 +501,13 @@ SOLVER_API void run_generic_solver(GenericSolver solver)
 
                 // Compute kext RHS's
 
-#define COMPUTE_MOMENTUM_FLUX_TRACE INV_METRIC_VALUE(1, 1) * MOMENTUM_FLUX_VALUE(1, 1) + INV_METRIC_VALUE(1, 2) * MOMENTUM_FLUX_VALUE(1, 2) + INV_METRIC_VALUE(1, 3) * MOMENTUM_FLUX_VALUE(1, 3) +     \
-                                        INV_METRIC_VALUE(2, 1) * MOMENTUM_FLUX_VALUE(2, 1) + INV_METRIC_VALUE(1, 2) * MOMENTUM_FLUX_VALUE(2, 2) + INV_METRIC_VALUE(2, 3) * MOMENTUM_FLUX_VALUE(2, 3) + \
-                                        INV_METRIC_VALUE(3, 1) * MOMENTUM_FLUX_VALUE(3, 1) + INV_METRIC_VALUE(3, 2) * MOMENTUM_FLUX_VALUE(3, 2) + INV_METRIC_VALUE(3, 3) * MOMENTUM_FLUX_VALUE(3, 3)
-
-                auto momentum_flux_trace = COMPUTE_MOMENTUM_FLUX_TRACE;
-
-#define MOMENTUM_FLUX_TRACE momentum_flux_trace
-
 #define EXTRINSIC_VALUE_BY_TRACE(i, j) EXTRINSIC_TRACE *EXTRINSIC_VALUE(i, j)
 #define EXTRINSIC_INNER_PRODUCT_TERM(i, j, k, l) EXTRINSIC_VALUE(i, k) * INV_METRIC_VALUE(k, l) * EXTRINSIC_VALUE(l, j)
 #define EXTRINSIC_INNER_PRODUCT(i, j) EXTRINSIC_INNER_PRODUCT_TERM(i, j, 1, 1) + EXTRINSIC_INNER_PRODUCT_TERM(i, j, 1, 2) + EXTRINSIC_INNER_PRODUCT_TERM(i, j, 1, 3) +     \
                                           EXTRINSIC_INNER_PRODUCT_TERM(i, j, 2, 1) + EXTRINSIC_INNER_PRODUCT_TERM(i, j, 2, 2) + EXTRINSIC_INNER_PRODUCT_TERM(i, j, 3, 3) + \
                                           EXTRINSIC_INNER_PRODUCT_TERM(i, j, 3, 1) + EXTRINSIC_INNER_PRODUCT_TERM(i, j, 3, 2) + EXTRINSIC_INNER_PRODUCT_TERM(i, j, 3, 3)
 
-#define EXTRINSIC_RHS(i, j) LAPSE_VALUE *(RICCI(i, j) - 2.0 * EXTRINSIC_INNER_PRODUCT(i, j) + EXTRINSIC_VALUE_BY_TRACE(i, j)) - LAPSE_HESSIAN(i, j) - \
-                                8.0 * numbers::PI *LAPSE_VALUE *(MOMENTUM_FLUX_VALUE(i, j) - 1.0 / 2.0 * METRIC_VALUE(i, j) * (MOMENTUM_FLUX_TRACE - ENERGY_DENSITY_VALUE))
+#define EXTRINSIC_RHS(i, j) LAPSE_VALUE *(RICCI(i, j) - 2.0 * EXTRINSIC_INNER_PRODUCT(i, j) + EXTRINSIC_VALUE_BY_TRACE(i, j)) - LAPSE_HESSIAN(i, j)
 
                 auto extrinsic_rhs_11 = EXTRINSIC_RHS(1, 1);
                 auto extrinsic_rhs_12 = EXTRINSIC_RHS(1, 2);
@@ -729,7 +649,7 @@ SOLVER_API void run_generic_solver(GenericSolver solver)
     }
 }
 
-SOLVER_API void destroy_generic_solver(GenericSolver solver)
+SOLVER_API void destroy_vacuum_solver(VacuumSolver solver)
 {
-    delete (GenericSolver_T *)solver;
+    delete (VacuumSolver_T *)solver;
 }

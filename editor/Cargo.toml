@@ -12,17 +12,17 @@ constellation-base = { path = "../base", version = "0.1.0" }
 
 starlight = { path = "../crates/starlight", version = "0.1.0" }
 
-# clap = "3.0.7"
+clap = "3.0.7"
 env_logger = "0.9.0"
-# bytemuck = "1.7.2"
-# egui = "0.16.1"
-# epaint = "0.16.0"
-# futures = "0.3.17"
-# glam = { version = "0.20.2", features = ["bytemuck"] }
-# wgpu = "0.12.0"
-# winit = "0.26.1"
+bytemuck = "1.7.2"
+egui = "0.16.1"
+epaint = "0.16.0"
+futures = "0.3.17"
+glam = { version = "0.20.2", features = ["bytemuck"] }
+wgpu = "0.12.0"
+winit = "0.26.1"
 log = "0.4.0"
 
-bevy = "0.6"
+# bevy = "0.6"
 
 [features]
