@@ -259,6 +259,136 @@ SOLVER_API void run_vacuum_solver(VacuumSolver solver)
 
     auto boundary_values = std::map<types::global_dof_index, double>{};
 
+    // Temporarily generate  initial data
+
+    for (const auto &cell : dof_handler.active_cell_iterators())
+    {
+        fe_values.reinit(cell);
+        cell->get_dof_indices(local_dof_indices);
+
+        //////////////////////////////////
+        // Spacetime /////////////////////
+        //////////////////////////////////
+
+        cell_metric_rhs_11 = 0;
+        cell_metric_rhs_12 = 0;
+        cell_metric_rhs_13 = 0;
+        cell_metric_rhs_22 = 0;
+        cell_metric_rhs_23 = 0;
+        cell_metric_rhs_33 = 0;
+
+        cell_extrinsic_rhs_11 = 0;
+        cell_extrinsic_rhs_12 = 0;
+        cell_extrinsic_rhs_13 = 0;
+        cell_extrinsic_rhs_22 = 0;
+        cell_extrinsic_rhs_23 = 0;
+        cell_extrinsic_rhs_33 = 0;
+
+        for (const unsigned int q_index :
+             fe_values.quadrature_point_indices())
+        {
+
+            for (const unsigned int i : fe_values.dof_indices())
+            {
+                // Index of which element of the shape functionis not 0.0
+                const auto component_i =
+                    fe.system_to_component_index(i).first;
+
+                auto integrator = fe_values.shape_value(i, q_index) * fe_values.JxW(q_index);
+
+                cell_metric_rhs_11(i) += 1.0 * integrator;
+                cell_metric_rhs_12(i) += 0.0 * integrator;
+                cell_metric_rhs_13(i) += 0.0 * integrator;
+                cell_metric_rhs_22(i) += 1.0 * integrator;
+                cell_metric_rhs_23(i) += 0.0 * integrator;
+                cell_metric_rhs_33(i) += 1.0 * integrator;
+
+                cell_extrinsic_rhs_11(i) += 0.0 * integrator;
+                cell_extrinsic_rhs_12(i) += 0.0 * integrator;
+                cell_extrinsic_rhs_13(i) += 0.0 * integrator;
+                cell_extrinsic_rhs_22(i) += 0.0 * integrator;
+                cell_extrinsic_rhs_23(i) += 0.0 * integrator;
+                cell_extrinsic_rhs_33(i) += 0.0 * integrator;
+            }
+        }
+
+        constraints.distribute_local_to_global(cell_metric_rhs_11, local_dof_indices, metric_rhs_11);
+        constraints.distribute_local_to_global(cell_metric_rhs_12, local_dof_indices, metric_rhs_12);
+        constraints.distribute_local_to_global(cell_metric_rhs_13, local_dof_indices, metric_rhs_13);
+        constraints.distribute_local_to_global(cell_metric_rhs_22, local_dof_indices, metric_rhs_22);
+        constraints.distribute_local_to_global(cell_metric_rhs_23, local_dof_indices, metric_rhs_23);
+        constraints.distribute_local_to_global(cell_metric_rhs_33, local_dof_indices, metric_rhs_33);
+
+        constraints.distribute_local_to_global(cell_extrinsic_rhs_11, local_dof_indices, extrinsic_rhs_11);
+        constraints.distribute_local_to_global(cell_extrinsic_rhs_12, local_dof_indices, extrinsic_rhs_12);
+        constraints.distribute_local_to_global(cell_extrinsic_rhs_13, local_dof_indices, extrinsic_rhs_13);
+        constraints.distribute_local_to_global(cell_extrinsic_rhs_22, local_dof_indices, extrinsic_rhs_22);
+        constraints.distribute_local_to_global(cell_extrinsic_rhs_23, local_dof_indices, extrinsic_rhs_23);
+        constraints.distribute_local_to_global(cell_extrinsic_rhs_33, local_dof_indices, extrinsic_rhs_33);
+    }
+
+    {
+        SolverControl solver_control(100, 1e-12);
+        SolverCG<Vector<double>> cg(solver_control);
+
+        auto solve_system = [&](auto &metric, auto &metric_rhs, auto &boundary)
+        {
+            boundary_values.clear();
+            VectorTools::interpolate_boundary_values(dof_handler,
+                                                     0,
+                                                     boundary,
+                                                     boundary_values);
+
+            system_matrix.copy_from(shape_matrix);
+            MatrixTools::apply_boundary_values(boundary_values,
+                                               system_matrix,
+                                               metric,
+                                               metric_rhs);
+
+            cg.solve(system_matrix, metric, metric_rhs, PreconditionIdentity{});
+
+            constraints.distribute(metric);
+        };
+
+        solve_system(metric_11, metric_rhs_11, ConstantFunction<3, double>(1.0));
+        solve_system(metric_12, metric_rhs_12, ZeroFunction<3, double>());
+        solve_system(metric_13, metric_rhs_13, ZeroFunction<3, double>());
+        solve_system(metric_22, metric_rhs_22, ConstantFunction<3, double>(1.0));
+        solve_system(metric_23, metric_rhs_23, ZeroFunction<3, double>());
+        solve_system(metric_33, metric_rhs_33, ConstantFunction<3, double>(1.0));
+    }
+
+    {
+        SolverControl solver_control(100, 1e-12);
+        SolverCG<Vector<double>> cg(solver_control);
+
+        auto solve_system = [&](auto &metric, auto &metric_rhs, auto &boundary)
+        {
+            boundary_values.clear();
+            VectorTools::interpolate_boundary_values(dof_handler,
+                                                     0,
+                                                     boundary,
+                                                     boundary_values);
+
+            system_matrix.copy_from(shape_matrix);
+            MatrixTools::apply_boundary_values(boundary_values,
+                                               system_matrix,
+                                               metric,
+                                               metric_rhs);
+
+            cg.solve(system_matrix, metric, metric_rhs, PreconditionIdentity{});
+
+            constraints.distribute(metric);
+        };
+
+        solve_system(extrinsic_11, extrinsic_rhs_11, ZeroFunction<3, double>(1));
+        solve_system(extrinsic_12, extrinsic_rhs_12, ZeroFunction<3, double>(1));
+        solve_system(extrinsic_13, extrinsic_rhs_13, ZeroFunction<3, double>(1));
+        solve_system(extrinsic_22, extrinsic_rhs_22, ZeroFunction<3, double>(1));
+        solve_system(extrinsic_23, extrinsic_rhs_23, ZeroFunction<3, double>(1));
+        solve_system(extrinsic_33, extrinsic_rhs_33, ZeroFunction<3, double>(1));
+    }
+
     // Nbodies
 
     auto nbody_points = std::vector<Point<3, double>>();

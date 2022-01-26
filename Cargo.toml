@@ -19,8 +19,8 @@ libloading = "0.7.2"
 
 
 [[bin]]
-name = "explicit-build"
-path = "explicit-build.rs"
+name = "native_build"
+path = "native/build.rs"
 test = false
 bench = false
 

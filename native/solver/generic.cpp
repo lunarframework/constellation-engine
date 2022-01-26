@@ -2,7 +2,10 @@
 #include <cstdint>
 #include <cmath>
 
+#include <string>
 #include <vector>
+#include <iostream>
+#include <fstream>
 
 #include <deal.II/base/quadrature_lib.h>
 #include <deal.II/base/tensor.h>
@@ -25,6 +28,7 @@
 #include <deal.II/lac/precondition.h>
 #include <deal.II/numerics/vector_tools.h>
 #include <deal.II/numerics/matrix_tools.h>
+#include <deal.II/numerics/data_out.h>
 
 #include "base/grids.h"
 #include "base/defines.h"
@@ -36,6 +40,18 @@ typedef struct GenericSolver_T *GenericSolver;
 
 struct GenericSolver_T
 {
+    std::string output_dir;
+
+    // Domain Settings
+
+    double delta_time;
+    unsigned int steps;
+
+    // Units
+
+    double G;
+    double c;
+
     // Settings
     union
     {
@@ -52,7 +68,7 @@ struct GenericSolver_T
     uint32_t n_vertices;
 };
 
-SOLVER_API GenericSolver create_generic_solver()
+SOLVER_API GenericSolver generic_solver_create(const char *output_dir)
 {
     GenericSolver_T *p_solver = new GenericSolver_T{};
 
@@ -62,9 +78,28 @@ SOLVER_API GenericSolver create_generic_solver()
     p_solver->grid.cube.depth = 1.0;
     p_solver->grid.cube.refinement = 0;
 
+    p_solver->output_dir = std::string(output_dir);
+    p_solver->delta_time = 1.0;
+    p_solver->steps = 1;
+
+    p_solver->G = 1.0;
+    p_solver->c = 1.0;
+
     p_solver->nbodies = std::vector<NBody>();
 
     return p_solver;
+}
+
+SOLVER_API void generic_solver_set_units(GenericSolver solver, double G, double c)
+{
+    solver->G = G;
+    solver->c = c;
+}
+
+SOLVER_API void generic_solver_set_time_domain(GenericSolver solver, unsigned int steps, double delta_time)
+{
+    solver->steps = steps;
+    solver->delta_time = delta_time;
 }
 
 SOLVER_API void generic_solver_add_nbody(GenericSolver solver, NBody nbody)
@@ -72,7 +107,7 @@ SOLVER_API void generic_solver_add_nbody(GenericSolver solver, NBody nbody)
     solver->nbodies.push_back(nbody);
 }
 
-SOLVER_API void run_generic_solver(GenericSolver solver)
+SOLVER_API void generic_solver_run(GenericSolver solver)
 {
     using namespace dealii;
 
@@ -83,19 +118,19 @@ SOLVER_API void run_generic_solver(GenericSolver solver)
     auto triangulation = Triangulation<3>();
 
     GridGenerator::hyper_rectangle(triangulation, Point<3>{-1.0, -1.0, -1.0}, Point<3>{1.0, 1.0, 1.0});
-    triangulation.refine_global(5);
+    triangulation.refine_global(3);
 
-    auto cache = GridTools::Cache<3, 3>(triangulation);
+    std::cout << "Built Triangulation" << std::endl;
+
+    // auto cache = GridTools::Cache<3, 3>(triangulation);
 
     ////////////////////////
     // Dofs ////////////////
     ////////////////////////
 
-    const auto degree = 1;
+    const auto fe = FE_Q<3>(2);
 
-    auto q_formula = QGauss<3>{degree + 1};
-
-    const auto fe = FE_Q<3>(degree);
+    auto q_formula = QGauss<3>{fe.degree + 1};
 
     auto dof_handler = DoFHandler<3>{triangulation};
     dof_handler.distribute_dofs(fe);
@@ -112,6 +147,8 @@ SOLVER_API void run_generic_solver(GenericSolver solver)
                                  q_formula,
                                  update_values | update_gradients | update_JxW_values | update_hessians};
 
+    std::cout << "Built Dofs" << std::endl;
+
     /////////////////////////
     // Config ///////////////
     /////////////////////////
@@ -122,8 +159,7 @@ SOLVER_API void run_generic_solver(GenericSolver solver)
     const auto n_dofs = dof_handler.n_dofs();
     const auto n_dofs_per_cell = fe.n_dofs_per_cell();
 
-    double delta_time = 1.0;
-    uint32_t max_iteration = 0;
+    std::cout << "NDofs " << n_dofs << " n dofs per cell " << n_dofs_per_cell << std::endl;
 
     //////////////////////////////
     // Spacetime ////////////////
@@ -131,19 +167,19 @@ SOLVER_API void run_generic_solver(GenericSolver solver)
 
     // Metric: finite element representation
 
-    auto metric_11 = Vector<double>{n_dofs};
-    auto metric_12 = Vector<double>{n_dofs};
-    auto metric_13 = Vector<double>{n_dofs};
-    auto metric_22 = Vector<double>{n_dofs};
-    auto metric_23 = Vector<double>{n_dofs};
-    auto metric_33 = Vector<double>{n_dofs};
+    auto metric_11 = Vector<double>(n_dofs);
+    auto metric_12 = Vector<double>(n_dofs);
+    auto metric_13 = Vector<double>(n_dofs);
+    auto metric_22 = Vector<double>(n_dofs);
+    auto metric_23 = Vector<double>(n_dofs);
+    auto metric_33 = Vector<double>(n_dofs);
 
-    auto metric_rhs_11 = Vector<double>{n_dofs};
-    auto metric_rhs_12 = Vector<double>{n_dofs};
-    auto metric_rhs_13 = Vector<double>{n_dofs};
-    auto metric_rhs_22 = Vector<double>{n_dofs};
-    auto metric_rhs_23 = Vector<double>{n_dofs};
-    auto metric_rhs_33 = Vector<double>{n_dofs};
+    auto metric_rhs_11 = Vector<double>(n_dofs);
+    auto metric_rhs_12 = Vector<double>(n_dofs);
+    auto metric_rhs_13 = Vector<double>(n_dofs);
+    auto metric_rhs_22 = Vector<double>(n_dofs);
+    auto metric_rhs_23 = Vector<double>(n_dofs);
+    auto metric_rhs_33 = Vector<double>(n_dofs);
 
     // Metric: values and gradients
 
@@ -179,19 +215,19 @@ SOLVER_API void run_generic_solver(GenericSolver solver)
 
     // Extrinsic Curvature: finite element representation
 
-    auto extrinsic_11 = Vector<double>{n_dofs};
-    auto extrinsic_12 = Vector<double>{n_dofs};
-    auto extrinsic_13 = Vector<double>{n_dofs};
-    auto extrinsic_22 = Vector<double>{n_dofs};
-    auto extrinsic_23 = Vector<double>{n_dofs};
-    auto extrinsic_33 = Vector<double>{n_dofs};
+    auto extrinsic_11 = Vector<double>(n_dofs);
+    auto extrinsic_12 = Vector<double>(n_dofs);
+    auto extrinsic_13 = Vector<double>(n_dofs);
+    auto extrinsic_22 = Vector<double>(n_dofs);
+    auto extrinsic_23 = Vector<double>(n_dofs);
+    auto extrinsic_33 = Vector<double>(n_dofs);
 
-    auto extrinsic_rhs_11 = Vector<double>{n_dofs};
-    auto extrinsic_rhs_12 = Vector<double>{n_dofs};
-    auto extrinsic_rhs_13 = Vector<double>{n_dofs};
-    auto extrinsic_rhs_22 = Vector<double>{n_dofs};
-    auto extrinsic_rhs_23 = Vector<double>{n_dofs};
-    auto extrinsic_rhs_33 = Vector<double>{n_dofs};
+    auto extrinsic_rhs_11 = Vector<double>(n_dofs);
+    auto extrinsic_rhs_12 = Vector<double>(n_dofs);
+    auto extrinsic_rhs_13 = Vector<double>(n_dofs);
+    auto extrinsic_rhs_22 = Vector<double>(n_dofs);
+    auto extrinsic_rhs_23 = Vector<double>(n_dofs);
+    auto extrinsic_rhs_33 = Vector<double>(n_dofs);
 
     // Extrinsic Curvature: values
 
@@ -213,9 +249,9 @@ SOLVER_API void run_generic_solver(GenericSolver solver)
 
     // Lapse
 
-    auto lapse = Vector<double>{n_dofs};
+    auto lapse = Vector<double>(n_dofs);
 
-    auto lapse_rhs = Vector<double>{n_dofs};
+    auto lapse_rhs = Vector<double>(n_dofs);
 
     auto lapse_values = std::vector<double>(n_quadrature_points_per_cell);
 
@@ -239,6 +275,8 @@ SOLVER_API void run_generic_solver(GenericSolver solver)
     auto momentum_flux_22 = std::vector<double>(n_active_cells * n_quadrature_points_per_cell, 0.0);
     auto momentum_flux_23 = std::vector<double>(n_active_cells * n_quadrature_points_per_cell, 0.0);
     auto momentum_flux_33 = std::vector<double>(n_active_cells * n_quadrature_points_per_cell, 0.0);
+
+    std::cout << "Allocated Vectors" << std::endl;
 
     ////////////////////////////////
     // Tensor Defines //////////////
@@ -275,6 +313,8 @@ SOLVER_API void run_generic_solver(GenericSolver solver)
     // Scratch matrix usually copied from shape_matrix
     SparseMatrix<double> system_matrix{sparsity_pattern};
 
+    std::cout << "Built matrices" << std::endl;
+
     //////////////////////////
     // Time Loop /////////////
     //////////////////////////
@@ -287,11 +327,194 @@ SOLVER_API void run_generic_solver(GenericSolver solver)
 
     auto boundary_values = std::map<types::global_dof_index, double>{};
 
+    // Temporarily generate  initial data
+
+    for (const auto &cell : dof_handler.active_cell_iterators())
+    {
+        fe_values.reinit(cell);
+        cell->get_dof_indices(local_dof_indices);
+
+        /////////////////////////////////
+        // Shape Matrix /////////////////
+        /////////////////////////////////
+
+        cell_shape_matrix = 0;
+
+        for (const unsigned int i : fe_values.dof_indices())
+        {
+            for (const unsigned int j : fe_values.dof_indices())
+            {
+                for (const unsigned int q_index :
+                     fe_values.quadrature_point_indices())
+                {
+                    cell_shape_matrix(i, j) += fe_values.shape_value(i, q_index) *
+                                               fe_values.shape_value(j, q_index) *
+                                               fe_values.JxW(q_index);
+                }
+            }
+        }
+
+        constraints.distribute_local_to_global(
+            cell_shape_matrix, local_dof_indices, shape_matrix);
+    }
+
+    for (const auto &cell : dof_handler.active_cell_iterators())
+    {
+        fe_values.reinit(cell);
+        cell->get_dof_indices(local_dof_indices);
+
+        //////////////////////////////////
+        // Spacetime /////////////////////
+        //////////////////////////////////
+
+        cell_metric_rhs_11 = 0;
+        cell_metric_rhs_12 = 0;
+        cell_metric_rhs_13 = 0;
+        cell_metric_rhs_22 = 0;
+        cell_metric_rhs_23 = 0;
+        cell_metric_rhs_33 = 0;
+
+        cell_extrinsic_rhs_11 = 0;
+        cell_extrinsic_rhs_12 = 0;
+        cell_extrinsic_rhs_13 = 0;
+        cell_extrinsic_rhs_22 = 0;
+        cell_extrinsic_rhs_23 = 0;
+        cell_extrinsic_rhs_33 = 0;
+
+        for (const unsigned int q_index :
+             fe_values.quadrature_point_indices())
+        {
+
+            for (const unsigned int i : fe_values.dof_indices())
+            {
+                auto integrator = fe_values.shape_value(i, q_index) * fe_values.JxW(q_index);
+
+                cell_metric_rhs_11(i) += 1.0 * integrator;
+                cell_metric_rhs_12(i) += 0.0 * integrator;
+                cell_metric_rhs_13(i) += 0.0 * integrator;
+                cell_metric_rhs_22(i) += 1.0 * integrator;
+                cell_metric_rhs_23(i) += 0.0 * integrator;
+                cell_metric_rhs_33(i) += 1.0 * integrator;
+
+                cell_extrinsic_rhs_11(i) += 0.0 * integrator;
+                cell_extrinsic_rhs_12(i) += 0.0 * integrator;
+                cell_extrinsic_rhs_13(i) += 0.0 * integrator;
+                cell_extrinsic_rhs_22(i) += 0.0 * integrator;
+                cell_extrinsic_rhs_23(i) += 0.0 * integrator;
+                cell_extrinsic_rhs_33(i) += 0.0 * integrator;
+            }
+        }
+
+        // std::cout << "Distributing" << std::endl;
+
+        // std::cout << "local_dof_indices size" << local_dof_indices.size() << std::endl;
+        // std::cout << "cell_metric_rhs_11 size" << cell_metric_rhs_11.size() << std::endl;
+        // std::cout << "metric_rhs_11 size" << metric_rhs_11.size() << std::endl;
+
+        // #define DISTRIBUTE_LOCAL_TO_GLOBAL(local, global)         \
+//     for (const unsigned int i : fe_values.dof_indices())  \
+//     {                                                     \
+//         ##global##(local_dof_indices[i]) += ##local##(i); \
+//     }
+
+        //         DISTRIBUTE_LOCAL_TO_GLOBAL(cell_metric_rhs_11, metric_rhs_11);
+        //         DISTRIBUTE_LOCAL_TO_GLOBAL(cell_metric_rhs_12, metric_rhs_12);
+        //         DISTRIBUTE_LOCAL_TO_GLOBAL(cell_metric_rhs_13, metric_rhs_13);
+        //         DISTRIBUTE_LOCAL_TO_GLOBAL(cell_metric_rhs_22, metric_rhs_22);
+        //         DISTRIBUTE_LOCAL_TO_GLOBAL(cell_metric_rhs_23, metric_rhs_23);
+        //         DISTRIBUTE_LOCAL_TO_GLOBAL(cell_metric_rhs_33, metric_rhs_33);
+
+        //         DISTRIBUTE_LOCAL_TO_GLOBAL(cell_extrinsic_rhs_11, extrinsic_rhs_11);
+        //         DISTRIBUTE_LOCAL_TO_GLOBAL(cell_extrinsic_rhs_12, extrinsic_rhs_12);
+        //         DISTRIBUTE_LOCAL_TO_GLOBAL(cell_extrinsic_rhs_13, extrinsic_rhs_13);
+        //         DISTRIBUTE_LOCAL_TO_GLOBAL(cell_extrinsic_rhs_22, extrinsic_rhs_22);
+        //         DISTRIBUTE_LOCAL_TO_GLOBAL(cell_extrinsic_rhs_23, extrinsic_rhs_23);
+        //         DISTRIBUTE_LOCAL_TO_GLOBAL(cell_extrinsic_rhs_33, extrinsic_rhs_33);
+
+        constraints.distribute_local_to_global(cell_metric_rhs_11, local_dof_indices, metric_rhs_11);
+        constraints.distribute_local_to_global(cell_metric_rhs_12, local_dof_indices, metric_rhs_12);
+        constraints.distribute_local_to_global(cell_metric_rhs_13, local_dof_indices, metric_rhs_13);
+        constraints.distribute_local_to_global(cell_metric_rhs_22, local_dof_indices, metric_rhs_22);
+        constraints.distribute_local_to_global(cell_metric_rhs_23, local_dof_indices, metric_rhs_23);
+        constraints.distribute_local_to_global(cell_metric_rhs_33, local_dof_indices, metric_rhs_33);
+
+        constraints.distribute_local_to_global(cell_extrinsic_rhs_11, local_dof_indices, extrinsic_rhs_11);
+        constraints.distribute_local_to_global(cell_extrinsic_rhs_12, local_dof_indices, extrinsic_rhs_12);
+        constraints.distribute_local_to_global(cell_extrinsic_rhs_13, local_dof_indices, extrinsic_rhs_13);
+        constraints.distribute_local_to_global(cell_extrinsic_rhs_22, local_dof_indices, extrinsic_rhs_22);
+        constraints.distribute_local_to_global(cell_extrinsic_rhs_23, local_dof_indices, extrinsic_rhs_23);
+        constraints.distribute_local_to_global(cell_extrinsic_rhs_33, local_dof_indices, extrinsic_rhs_33);
+    }
+
+    {
+        SolverControl solver_control(100, 1e-6);
+        SolverCG<Vector<double>> cg(solver_control);
+
+        auto solve_system = [&](auto &metric, auto &metric_rhs, auto &boundary)
+        {
+            boundary_values.clear();
+            VectorTools::interpolate_boundary_values(dof_handler,
+                                                     0,
+                                                     boundary,
+                                                     boundary_values);
+
+            system_matrix.copy_from(shape_matrix);
+            MatrixTools::apply_boundary_values(boundary_values,
+                                               system_matrix,
+                                               metric,
+                                               metric_rhs);
+
+            cg.solve(system_matrix, metric, metric_rhs, PreconditionIdentity{});
+
+            constraints.distribute(metric);
+        };
+
+        solve_system(metric_11, metric_rhs_11, ConstantFunction<3, double>(1.0));
+        solve_system(metric_12, metric_rhs_12, ZeroFunction<3, double>());
+        solve_system(metric_13, metric_rhs_13, ZeroFunction<3, double>());
+        solve_system(metric_22, metric_rhs_22, ConstantFunction<3, double>(1.0));
+        solve_system(metric_23, metric_rhs_23, ZeroFunction<3, double>());
+        solve_system(metric_33, metric_rhs_33, ConstantFunction<3, double>(1.0));
+    }
+
+    {
+        SolverControl solver_control(100, 1e-6);
+        SolverCG<Vector<double>> cg(solver_control);
+
+        auto solve_system = [&](auto &metric, auto &metric_rhs, auto &boundary)
+        {
+            boundary_values.clear();
+            VectorTools::interpolate_boundary_values(dof_handler,
+                                                     0,
+                                                     boundary,
+                                                     boundary_values);
+
+            system_matrix.copy_from(shape_matrix);
+            MatrixTools::apply_boundary_values(boundary_values,
+                                               system_matrix,
+                                               metric,
+                                               metric_rhs);
+
+            cg.solve(system_matrix, metric, metric_rhs, PreconditionIdentity{});
+
+            constraints.distribute(metric);
+        };
+
+        solve_system(extrinsic_11, extrinsic_rhs_11, ZeroFunction<3, double>(1));
+        solve_system(extrinsic_12, extrinsic_rhs_12, ZeroFunction<3, double>(1));
+        solve_system(extrinsic_13, extrinsic_rhs_13, ZeroFunction<3, double>(1));
+        solve_system(extrinsic_22, extrinsic_rhs_22, ZeroFunction<3, double>(1));
+        solve_system(extrinsic_23, extrinsic_rhs_23, ZeroFunction<3, double>(1));
+        solve_system(extrinsic_33, extrinsic_rhs_33, ZeroFunction<3, double>(1));
+    }
+
+    std::cout << "Constructed Initial Data" << std::endl;
+
     // Nbodies
 
-    auto nbody_points = std::vector<Point<3, double>>();
+    // auto nbody_points = std::vector<Point<3, double>>();
 
-    for (uint32_t i = 0; i < max_iteration; i++)
+    for (uint32_t i = 0; i < solver->steps; i++)
     {
 
         ///////////////////////////////////////
@@ -375,44 +598,46 @@ SOLVER_API void run_generic_solver(GenericSolver solver)
         // Source Terms //////////////////
         //////////////////////////////////
 
-        {
-            nbody_points.clear();
-            nbody_points.reserve(solver->nbodies.size());
+        // {
+        //     nbody_points.clear();
+        //     nbody_points.reserve(solver->nbodies.size());
 
-            for (auto &nbody : solver->nbodies)
-            {
-                nbody_points.push_back(Point<3, double>(nbody.x, nbody.y, nbody.z));
-            }
+        //     for (auto &nbody : solver->nbodies)
+        //     {
+        //         nbody_points.push_back(Point<3, double>(nbody.x, nbody.y, nbody.z));
+        //     }
 
-            auto [cells, qpoints, indices] = GridTools::compute_point_locations(cache, nbody_points);
+        //     auto [cells, qpoints, indices] = GridTools::compute_point_locations(cache, nbody_points);
 
-            for (int cell_index = 0; cell_index < cells.size(); cell_index++)
-            {
-                auto global_cell_index = cells[cell_index]->index();
-                for (int point_index = 0; point_index < qpoints[cell_index].size(); point_index++)
-                {
-                    for (const auto q_index : fe_values.quadrature_point_indices())
-                    {
-                        auto vector_index = global_cell_index * n_quadrature_points_per_cell + q_index;
+        //     for (int cell_index = 0; cell_index < cells.size(); cell_index++)
+        //     {
+        //         auto global_cell_index = cells[cell_index]->index();
+        //         for (int point_index = 0; point_index < qpoints[cell_index].size(); point_index++)
+        //         {
+        //             for (const auto q_index : fe_values.quadrature_point_indices())
+        //             {
+        //                 auto vector_index = global_cell_index * n_quadrature_points_per_cell + q_index;
 
-                        energy_density[vector_index] = 0.0;
-                        momentum_density_1[vector_index] = 0.0;
-                        momentum_density_2[vector_index] = 0.0;
-                        momentum_density_3[vector_index] = 0.0;
-                        momentum_flux_11[vector_index] = 0.0;
-                        momentum_flux_12[vector_index] = 0.0;
-                        momentum_flux_13[vector_index] = 0.0;
-                        momentum_flux_22[vector_index] = 0.0;
-                        momentum_flux_23[vector_index] = 0.0;
-                        momentum_flux_33[vector_index] = 0.0;
-                    }
-                }
-            }
-        }
+        //                 energy_density[vector_index] = 0.0;
+        //                 momentum_density_1[vector_index] = 0.0;
+        //                 momentum_density_2[vector_index] = 0.0;
+        //                 momentum_density_3[vector_index] = 0.0;
+        //                 momentum_flux_11[vector_index] = 0.0;
+        //                 momentum_flux_12[vector_index] = 0.0;
+        //                 momentum_flux_13[vector_index] = 0.0;
+        //                 momentum_flux_22[vector_index] = 0.0;
+        //                 momentum_flux_23[vector_index] = 0.0;
+        //                 momentum_flux_33[vector_index] = 0.0;
+        //             }
+        //         }
+        //     }
+        // }
 
         /////////////////////////////////////////
         // Main Evolution //////////////////////
         /////////////////////////////////////////
+
+        const auto g_over_c4 = solver->G / (solver->c * solver->c * solver->c * solver->c);
 
         for (const auto &cell : dof_handler.active_cell_iterators())
         {
@@ -547,7 +772,7 @@ SOLVER_API void run_generic_solver(GenericSolver solver)
                 auto ricci_33 = COMPUTE_RICCI(3, 3);
 
                 // Define to access ricci
-#define RICCI(i, j, k) CONCAT(ricci_, INDICES(i, j))
+#define RICCI(i, j) CONCAT(ricci_, INDICES(i, j))
 
                 // Compute extrinsic trace
 
@@ -557,9 +782,13 @@ SOLVER_API void run_generic_solver(GenericSolver solver)
 
 #define EXTRINSIC_TRACE extrinsic_trace
 
-#define ENERGY_DENSITY_VALUE energy_density[q_index_offset + q_index]
-#define MOMENTUM_DENSITY_VALUE(i) momentum_density_##i##[q_index_offset + q_index]
-#define MOMENTUM_FLUX_VALUE(a, b) CONCAT(CONCAT(momentum_flux_, INDICES(a, b)), [q_index_offset + q_index])
+                // #define ENERGY_DENSITY_VALUE energy_density[q_index_offset + q_index]
+                // #define MOMENTUM_DENSITY_VALUE(i) momentum_density_##i##[q_index_offset + q_index]
+                // #define MOMENTUM_FLUX_VALUE(a, b) CONCAT(CONCAT(momentum_flux_, INDICES(a, b)), [q_index_offset + q_index])
+
+#define ENERGY_DENSITY_VALUE 0.0
+#define MOMENTUM_DENSITY_VALUE(i) 0.0
+#define MOMENTUM_FLUX_VALUE(a, b) 0.0
 
 #define METRIC_RHS(i, j) -2.0 * EXTRINSIC_VALUE(i, j) * LAPSE_VALUE
 
@@ -587,7 +816,7 @@ SOLVER_API void run_generic_solver(GenericSolver solver)
                                           EXTRINSIC_INNER_PRODUCT_TERM(i, j, 3, 1) + EXTRINSIC_INNER_PRODUCT_TERM(i, j, 3, 2) + EXTRINSIC_INNER_PRODUCT_TERM(i, j, 3, 3)
 
 #define EXTRINSIC_RHS(i, j) LAPSE_VALUE *(RICCI(i, j) - 2.0 * EXTRINSIC_INNER_PRODUCT(i, j) + EXTRINSIC_VALUE_BY_TRACE(i, j)) - LAPSE_HESSIAN(i, j) - \
-                                8.0 * numbers::PI *LAPSE_VALUE *(MOMENTUM_FLUX_VALUE(i, j) - 1.0 / 2.0 * METRIC_VALUE(i, j) * (MOMENTUM_FLUX_TRACE - ENERGY_DENSITY_VALUE))
+                                8.0 * numbers::PI *g_over_c4 *LAPSE_VALUE *(MOMENTUM_FLUX_VALUE(i, j) - 1.0 / 2.0 * METRIC_VALUE(i, j) * (MOMENTUM_FLUX_TRACE - ENERGY_DENSITY_VALUE))
 
                 auto extrinsic_rhs_11 = EXTRINSIC_RHS(1, 1);
                 auto extrinsic_rhs_12 = EXTRINSIC_RHS(1, 2);
@@ -637,12 +866,12 @@ SOLVER_API void run_generic_solver(GenericSolver solver)
 
         {
             // Scale metric by delta time
-            metric_rhs_11 *= delta_time;
-            metric_rhs_12 *= delta_time;
-            metric_rhs_13 *= delta_time;
-            metric_rhs_22 *= delta_time;
-            metric_rhs_23 *= delta_time;
-            metric_rhs_33 *= delta_time;
+            metric_rhs_11 *= solver->delta_time;
+            metric_rhs_12 *= solver->delta_time;
+            metric_rhs_13 *= solver->delta_time;
+            metric_rhs_22 *= solver->delta_time;
+            metric_rhs_23 *= solver->delta_time;
+            metric_rhs_33 *= solver->delta_time;
             // Add previous metric for final rhs
             shape_matrix.vmult_add(metric_rhs_11, metric_11);
             shape_matrix.vmult_add(metric_rhs_12, metric_12);
@@ -683,12 +912,12 @@ SOLVER_API void run_generic_solver(GenericSolver solver)
 
         {
             // Scale extrinsic by delta time
-            extrinsic_rhs_11 *= delta_time;
-            extrinsic_rhs_12 *= delta_time;
-            extrinsic_rhs_13 *= delta_time;
-            extrinsic_rhs_22 *= delta_time;
-            extrinsic_rhs_23 *= delta_time;
-            extrinsic_rhs_33 *= delta_time;
+            extrinsic_rhs_11 *= solver->delta_time;
+            extrinsic_rhs_12 *= solver->delta_time;
+            extrinsic_rhs_13 *= solver->delta_time;
+            extrinsic_rhs_22 *= solver->delta_time;
+            extrinsic_rhs_23 *= solver->delta_time;
+            extrinsic_rhs_33 *= solver->delta_time;
             // Add previous extrinsic for final rhs
             shape_matrix.vmult_add(extrinsic_rhs_11, extrinsic_11);
             shape_matrix.vmult_add(extrinsic_rhs_12, extrinsic_12);
@@ -727,9 +956,18 @@ SOLVER_API void run_generic_solver(GenericSolver solver)
             solve_system(extrinsic_33, extrinsic_rhs_33, ZeroFunction<3, double>(1));
         }
     }
+
+    std::ofstream file_output(solver->output_dir.append("/view.gnuplot"));
+
+    DataOut<3> data_out{};
+    data_out.attach_dof_handler(dof_handler);
+    data_out.add_data_vector(lapse, "lapse");
+    data_out.build_patches();
+
+    data_out.write_gnuplot(file_output);
 }
 
-SOLVER_API void destroy_generic_solver(GenericSolver solver)
+SOLVER_API void generic_solver_destroy(GenericSolver solver)
 {
     delete (GenericSolver_T *)solver;
 }
