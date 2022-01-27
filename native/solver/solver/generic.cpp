@@ -30,9 +30,10 @@
 #include <deal.II/numerics/matrix_tools.h>
 #include <deal.II/numerics/data_out.h>
 
-#include "base/grids.h"
 #include "base/defines.h"
 #include "base/nbody.h"
+
+#include "base/mesh.hpp"
 
 typedef struct GenericSolver_T *GenericSolver;
 
@@ -47,18 +48,6 @@ struct GenericSolver_T
     double delta_time;
     unsigned int steps;
 
-    // Units
-
-    double G;
-    double c;
-
-    // Settings
-    union
-    {
-        CubeGrid cube;
-    } grid;
-    int grid_type;
-
     // Objevts
 
     std::vector<NBody> nbodies;
@@ -71,12 +60,6 @@ struct GenericSolver_T
 SOLVER_API GenericSolver generic_solver_create(const char *output_dir)
 {
     GenericSolver_T *p_solver = new GenericSolver_T{};
-
-    p_solver->grid_type = CUBE_GRID;
-    p_solver->grid.cube.width = 1.0;
-    p_solver->grid.cube.height = 1.0;
-    p_solver->grid.cube.depth = 1.0;
-    p_solver->grid.cube.refinement = 0;
 
     p_solver->output_dir = std::string(output_dir);
     p_solver->delta_time = 1.0;

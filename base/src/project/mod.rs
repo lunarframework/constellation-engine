@@ -4,7 +4,7 @@ use std::path::PathBuf;
 
 mod config;
 mod data;
-mod view;
+pub mod view;
 
 pub use config::{Config, Length, Mass, Time};
 pub use data::Data;

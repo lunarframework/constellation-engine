@@ -1,6 +1,7 @@
 use clap::{App, Arg};
 use std::error::Error;
 
+pub mod native;
 pub mod new;
 pub mod simulate;
 

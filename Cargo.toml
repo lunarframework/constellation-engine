@@ -14,12 +14,13 @@ constellation-base = { path = "base", version = "0.1.0" }
 clap = "3.0.7"
 env_logger = "0.9.0"
 libloading = "0.7.2"
+glam = { version = "0.20.2", features = ["bytemuck", "serde"] }
 
 [features]
 
 
 [[bin]]
-name = "native_build"
+name = "native-build"
 path = "native/build.rs"
 test = false
 bench = false
