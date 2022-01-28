@@ -39,7 +39,7 @@ impl Project {
         }
 
         {
-            let contents = toml::to_string(&project.data).expect("Failed to serialize data.bin");
+            let contents = toml::to_string(&project.data).expect("Failed to serialize Data.toml");
             let mut file = File::create(project.path.join("Data.toml"))?;
 
             file.write_all(contents.as_bytes())?;
@@ -53,6 +53,7 @@ impl Project {
     }
 
     pub fn load(path: PathBuf) -> std::io::Result<Self> {
+        println!("");
         let config = {
             let mut file = File::open(path.join("Config.toml"))?;
 
@@ -78,14 +79,9 @@ impl Project {
                 for i in std::fs::read_dir(&path).unwrap() {
                     if let Ok(entry) = i {
                         if entry.path().is_file() {
-                            let mut file = File::open(entry.path())?;
-
-                            let mut contents = String::new();
-                            file.read_to_string(&mut contents)?;
-
                             views.push((
                                 entry.file_name().into_string().unwrap(),
-                                toml::from_str(&contents).expect("Failed to parse view file"),
+                                bincode::deserialize(&std::fs::read(entry.path())?).unwrap(),
                             ));
                         }
                     }
@@ -116,7 +112,7 @@ impl Project {
 
         {
             let contents = toml::to_string(&self.data).expect("Failed to serialize Data.toml");
-            let mut file = File::create(self.path.join("data.bin"))?;
+            let mut file = File::create(self.path.join("Data.toml"))?;
 
             file.write_all(contents.as_bytes())?;
         }
@@ -131,7 +127,7 @@ impl Project {
             for (name, view) in self.views.iter() {
                 let contents = bincode::serialize(view).expect("Failed to serialize view file");
 
-                let mut file = File::create(self.path.join(format!("{}.bin", name)))?;
+                let mut file = File::create(path.join(format!("{}.bin", name)))?;
 
                 file.write_all(&contents)?;
             }

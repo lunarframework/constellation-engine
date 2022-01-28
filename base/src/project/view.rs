@@ -9,7 +9,7 @@ pub struct StarData {
     pub vel: DVec3,
 }
 
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct View {
     pub max_time: f64,
     pub steps: u32,

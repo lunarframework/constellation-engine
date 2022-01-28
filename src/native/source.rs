@@ -1,5 +1,6 @@
 use std::os::raw::c_double;
 
+#[derive(Debug)]
 #[repr(C)]
 pub struct NBody {
     pub x: c_double,

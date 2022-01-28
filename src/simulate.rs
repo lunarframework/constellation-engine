@@ -133,6 +133,13 @@ fn invoke_solver(project: &mut Project) -> Result<(), Box<dyn Error>> {
         temp: 0.0,
         pos: DVec3::new(0.0, 0.0, 0.0),
         vel: DVec3::new(0.0, 0.0, 0.0),
+        mass: 10e10,
+    });
+
+    stars.push(Star {
+        temp: 0.0,
+        pos: DVec3::new(10.0, 0.0, 0.0),
+        vel: DVec3::new(0.0, 1.5, 0.0),
         mass: 1000.0,
     });
 
@@ -165,7 +172,7 @@ fn invoke_solver(project: &mut Project) -> Result<(), Box<dyn Error>> {
 
         post_newtonian_solver_attach_n_body_source(solver, n_body_source);
 
-        post_newtonian_solver_run(solver, 0.1, 1000);
+        post_newtonian_solver_run(solver, 0.01, 2000);
 
         let data = post_newtonian_solver_n_body_source_data(solver, n_body_source);
 
