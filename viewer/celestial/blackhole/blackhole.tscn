@@ -1,0 +1,17 @@
+[gd_scene load_steps=4 format=2]
+
+[ext_resource path="res://celestial/blackhole/blackhole_shader.tres" type="Shader" id=1]
+
+[sub_resource type="SphereMesh" id=1]
+
+[sub_resource type="ShaderMaterial" id=2]
+shader = ExtResource( 1 )
+shader_param/fresnel_scale = 2.5
+shader_param/fresnel_power_1 = 1.6
+shader_param/fresnel_power_2 = 6.0
+
+[node name="Blackhole" type="Spatial"]
+
+[node name="Sphere" type="MeshInstance" parent="."]
+mesh = SubResource( 1 )
+material/0 = SubResource( 2 )

@@ -1,10 +1,11 @@
-[gd_scene load_steps=6 format=2]
+[gd_scene load_steps=7 format=2]
 
 [ext_resource path="res://scripts/project_manager.gdns" type="Script" id=1]
 [ext_resource path="res://gui/viewer.png" type="Texture" id=2]
 [ext_resource path="res://gui/folder.png" type="Texture" id=3]
 [ext_resource path="res://gui/open_project.gd" type="Script" id=4]
 [ext_resource path="res://scripts/camera_controller.gd" type="Script" id=5]
+[ext_resource path="res://celestial/blackhole/blackhole.tscn" type="PackedScene" id=6]
 
 [node name="Main" type="Spatial"]
 
@@ -104,5 +105,8 @@ margin_bottom = 46.0
 size_flags_vertical = 1
 max_value = 1.0
 step = 0.01
+
+[node name="Blackhole" parent="." instance=ExtResource( 6 )]
+transform = Transform( 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -6.03999 )
 
 [connection signal="pressed" from="GUI/SidePanel/GridContainer/Folder" to="GUI/OpenProject" method="_on_Folder_pressed"]

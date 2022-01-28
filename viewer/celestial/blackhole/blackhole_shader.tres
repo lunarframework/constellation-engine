@@ -1,0 +1,25 @@
+[gd_resource type="Shader" format=2]
+
+[resource]
+code = "shader_type spatial;
+render_mode unshaded;
+
+uniform float fresnel_scale: hint_range(0.0, 10.0) = 2.5;
+uniform float fresnel_power_1: hint_range(0.0, 10.0) = 1.6;
+uniform float fresnel_power_2: hint_range(0.0, 10.0) = 6;
+
+void fragment() {
+	float fresnel = 1.0 - dot(NORMAL, VIEW);
+	
+	float clamped_fresnel = clamp(round(fresnel * fresnel_scale), 0.0, 1.0);
+	
+	vec2 uv_offset = (INV_CAMERA_MATRIX * (-vec4(NORMAL, 0.0))).yz;
+	
+	float uv_scale = pow(1.0 - pow(fresnel, fresnel_power_1), fresnel_power_2);
+	
+	vec2 uv = SCREEN_UV + uv_offset * uv_scale;
+	
+	vec4 background_color = textureLod(SCREEN_TEXTURE, uv, 0.0);
+	
+	ALBEDO = vec3(background_color.rgb * clamped_fresnel);
+}"

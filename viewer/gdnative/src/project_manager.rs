@@ -151,8 +151,6 @@ impl ProjectManager {
         if self.view.is_some() {
             let time = value as f64 * self.view.as_ref().unwrap().max_time;
 
-            godot_print!("Time: {}", time);
-
             let time_data_n = self.view.as_ref().unwrap().steps + 1;
 
             let fractional_index = time_data_n as f32 * value;
@@ -172,8 +170,6 @@ impl ProjectManager {
                 let x = old_data.pos.x as f32 * interp + new_data.pos.x as f32 * (1.0 - interp);
                 let y = old_data.pos.y as f32 * interp + new_data.pos.y as f32 * (1.0 - interp);
                 let z = old_data.pos.z as f32 * interp + new_data.pos.z as f32 * (1.0 - interp);
-
-                godot_print!("{:?}", (x, y, z));
 
                 unsafe { self.stars[i].assume_safe() }
                     .cast::<Spatial>()
