@@ -40,6 +40,13 @@ impl Default for Mass {
     }
 }
 
+#[derive(Debug, Default, Deserialize, Serialize)]
+pub struct Units {
+    length: Length,
+    time: Time,
+    mass: Mass,
+}
+
 #[derive(Debug, Deserialize, Serialize)]
 pub enum Domain {
     /// Rect centered on origin with the given dimensions
@@ -59,9 +66,7 @@ impl Default for Domain {
 #[derive(Debug, Deserialize, Serialize)]
 pub struct Config {
     pub name: String,
-    pub length: Length,
-    pub time: Time,
-    pub mass: Mass,
+    pub units: Units,
     // pub domain: Domain,
 }
 
@@ -69,9 +74,7 @@ impl Default for Config {
     fn default() -> Self {
         Self {
             name: String::from("default-name"),
-            length: Default::default(),
-            time: Default::default(),
-            mass: Default::default(),
+            units: Units::default(),
             // domain: Default::default(),
         }
     }

@@ -1,24 +1,28 @@
+use std::error::Error;
 use std::fs::File;
 use std::io::prelude::*;
+use std::path::Path;
 use std::path::PathBuf;
 
 mod config;
 mod data;
 pub mod view;
 
-pub use config::{Config, Length, Mass, Time};
+pub use config::{Length, Mass, Time, Units};
 pub use data::Data;
 pub use view::View;
 
+use config::Config;
+
 pub struct Project {
-    pub path: PathBuf,
-    pub config: Config,
+    path: PathBuf,
+    config: Config,
     pub data: Data,
     pub views: Vec<(String, View)>,
 }
 
 impl Project {
-    pub fn init(path: PathBuf, name: String) -> std::io::Result<()> {
+    pub fn init(path: PathBuf, name: String) -> Result<(), Box<dyn Error>> {
         let project = Self {
             path: path.clone(),
             config: Config {
@@ -30,8 +34,7 @@ impl Project {
         };
 
         {
-            let contents =
-                toml::to_string(&project.config).expect("Failed to serialize Config.toml");
+            let contents = toml::to_string(&project.config)?;
 
             let mut file = File::create(project.path.join("Config.toml"))?;
 
@@ -39,7 +42,7 @@ impl Project {
         }
 
         {
-            let contents = toml::to_string(&project.data).expect("Failed to serialize Data.toml");
+            let contents = toml::to_string(&project.data)?;
             let mut file = File::create(project.path.join("Data.toml"))?;
 
             file.write_all(contents.as_bytes())?;
@@ -52,7 +55,7 @@ impl Project {
         Ok(())
     }
 
-    pub fn load(path: PathBuf) -> std::io::Result<Self> {
+    pub fn load(path: PathBuf) -> Result<Self, Box<dyn Error>> {
         println!("");
         let config = {
             let mut file = File::open(path.join("Config.toml"))?;
@@ -60,7 +63,7 @@ impl Project {
             let mut contents = String::new();
             file.read_to_string(&mut contents)?;
 
-            toml::from_str(&contents).expect("Failed to parse Config.toml file")
+            toml::from_str(&contents)?
         };
 
         let data = {
@@ -101,9 +104,9 @@ impl Project {
         })
     }
 
-    pub fn save(&self) -> std::io::Result<()> {
+    pub fn save(&self) -> Result<(), Box<dyn Error>> {
         {
-            let contents = toml::to_string(&self.config).expect("Failed to serialize Config.toml");
+            let contents = toml::to_string(&self.config)?;
 
             let mut file = File::create(self.path.join("Config.toml"))?;
 
@@ -111,7 +114,7 @@ impl Project {
         }
 
         {
-            let contents = toml::to_string(&self.data).expect("Failed to serialize Data.toml");
+            let contents = toml::to_string(&self.data)?;
             let mut file = File::create(self.path.join("Data.toml"))?;
 
             file.write_all(contents.as_bytes())?;
@@ -125,7 +128,7 @@ impl Project {
             }
 
             for (name, view) in self.views.iter() {
-                let contents = bincode::serialize(view).expect("Failed to serialize view file");
+                let contents = bincode::serialize(view)?;
 
                 let mut file = File::create(path.join(format!("{}.bin", name)))?;
 
@@ -134,6 +137,26 @@ impl Project {
         }
 
         Ok(())
+    }
+
+    pub fn path(&self) -> &Path {
+        &self.path
+    }
+
+    pub fn name(&self) -> &str {
+        &self.config.name
+    }
+
+    pub fn set_name(&mut self, name: &str) {
+        self.config.name = String::from(name);
+    }
+
+    pub fn units(&self) -> &Units {
+        &self.config.units
+    }
+
+    pub fn set_units(&mut self, units: Units) {
+        self.config.units = units;
     }
 }
 

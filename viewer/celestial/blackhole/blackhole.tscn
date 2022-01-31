@@ -6,12 +6,14 @@
 
 [sub_resource type="ShaderMaterial" id=2]
 shader = ExtResource( 1 )
-shader_param/fresnel_scale = 2.5
-shader_param/fresnel_power_1 = 1.6
-shader_param/fresnel_power_2 = 6.0
+shader_param/fresnel_scale = 2.367
+shader_param/fresnel_power_1 = 1.938
+shader_param/fresnel_power_2 = 10.0
+shader_param/blend_mip = 0.0
 
 [node name="Blackhole" type="Spatial"]
 
 [node name="Sphere" type="MeshInstance" parent="."]
+transform = Transform( 0.999904, -0.0133962, -0.00367126, 0.0134067, 0.999906, 0.00284626, 0.00363277, -0.0028952, 0.999989, 0, 0, 0 )
 mesh = SubResource( 1 )
 material/0 = SubResource( 2 )

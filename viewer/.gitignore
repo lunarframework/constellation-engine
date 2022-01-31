@@ -3,5 +3,5 @@
 *.translation
 export_presets.cfg
 
-/gdnative/target/*
-/gdnative/Cargo.lock
+/native/target/*
+/native/Cargo.lock

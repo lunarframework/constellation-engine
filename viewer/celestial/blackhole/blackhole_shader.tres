@@ -2,11 +2,17 @@
 
 [resource]
 code = "shader_type spatial;
-render_mode unshaded;
+render_mode unshaded, skip_vertex_transform;
+
+void vertex() {
+    VERTEX = (MODELVIEW_MATRIX * vec4(VERTEX, 1.0)).xyz;
+    NORMAL = normalize((MODELVIEW_MATRIX * vec4(NORMAL, 0.0)).xyz);
+}
 
 uniform float fresnel_scale: hint_range(0.0, 10.0) = 2.5;
 uniform float fresnel_power_1: hint_range(0.0, 10.0) = 1.6;
 uniform float fresnel_power_2: hint_range(0.0, 10.0) = 6;
+uniform float blend_mip: hint_range(0.0, 10.0) = 0.0;
 
 void fragment() {
 	float fresnel = 1.0 - dot(NORMAL, VIEW);
@@ -19,7 +25,7 @@ void fragment() {
 	
 	vec2 uv = SCREEN_UV + uv_offset * uv_scale;
 	
-	vec4 background_color = textureLod(SCREEN_TEXTURE, uv, 0.0);
+	vec4 color = textureLod(SCREEN_TEXTURE, uv, blend_mip);
 	
-	ALBEDO = vec3(background_color.rgb * clamped_fresnel);
+	ALBEDO = vec3(color.rgb * clamped_fresnel);
 }"
