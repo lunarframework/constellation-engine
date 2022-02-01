@@ -3,5 +3,5 @@ mod solver;
 mod source;
 
 pub use context::{Context, ContextDescriptor};
-pub use solver::PostNewtonianSolver;
+pub use solver::{Accuracy, Domain, PostNewtonianSolver, RingSolver};
 pub use source::{NBody, NBodySource, NBodySourceData};

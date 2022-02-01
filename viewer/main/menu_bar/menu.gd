@@ -1,8 +1,8 @@
 extends PanelContainer
 
 
-onready var file_menu = $HBoxContainer/File
-onready var project_menu  = $HBoxContainer/Project
+onready var file_menu = $HBox/File
+onready var project_menu  = $HBox/Project
 
 func on_edit_project(project_manager: ProjectManager):
 	file_menu.on_edit_project(project_manager)

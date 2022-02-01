@@ -7,7 +7,6 @@ onready var popup = get_popup()
 onready var views = PopupMenu.new()
 
 func _ready():
-	
 	views.set_name("Views")
 	
 	popup.add_item("Settings")
@@ -19,8 +18,15 @@ func _ready():
 func on_edit_project(project_manager: ProjectManager):
 	self.disabled = false
 	
+	print("Editting project")
+	
+	for view in project_manager.views():
+		views.add_item(view)
+	
 func on_save_project(project_manager: ProjectManager):
 	pass
 	
 func on_close_project():
 	self.disabled = true
+	
+	views.clear()

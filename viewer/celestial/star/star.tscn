@@ -4,8 +4,8 @@
 
 [sub_resource type="SpatialMaterial" id=2]
 emission_enabled = true
-emission = Color( 1, 0.839216, 0, 1 )
-emission_energy = 1.85
+emission = Color( 1, 0.8, 0.2, 1 )
+emission_energy = 2.07
 emission_operator = 0
 emission_on_uv2 = false
 

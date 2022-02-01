@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::error::Error;
 use std::fs::File;
 use std::io::prelude::*;
@@ -12,13 +13,14 @@ pub use config::{Length, Mass, Time, Units};
 pub use data::Data;
 pub use view::View;
 
+use crate::Star;
 use config::Config;
 
 pub struct Project {
     path: PathBuf,
     config: Config,
     pub data: Data,
-    pub views: Vec<(String, View)>,
+    pub views: HashMap<String, View>,
 }
 
 impl Project {
@@ -30,7 +32,7 @@ impl Project {
                 ..Default::default()
             },
             data: Data::default(),
-            views: Vec::new(),
+            views: HashMap::new(),
         };
 
         {
@@ -78,21 +80,21 @@ impl Project {
         let views = {
             let path = path.join("views");
             if path.exists() {
-                let mut views = Vec::new();
+                let mut views = HashMap::new();
                 for i in std::fs::read_dir(&path).unwrap() {
                     if let Ok(entry) = i {
                         if entry.path().is_file() {
-                            views.push((
-                                entry.file_name().into_string().unwrap(),
-                                bincode::deserialize(&std::fs::read(entry.path())?).unwrap(),
-                            ));
+                            if let Ok(name) = entry.file_name().into_string() {
+                                let view = bincode::deserialize(&std::fs::read(entry.path())?)?;
+                                views.insert(name, view);
+                            }
                         }
                     }
                 }
 
                 views
             } else {
-                Vec::new()
+                HashMap::new()
             }
         };
 
@@ -157,6 +159,34 @@ impl Project {
 
     pub fn set_units(&mut self, units: Units) {
         self.config.units = units;
+    }
+
+    pub fn insert_view(&mut self, name: String, view: View) {
+        self.views.insert(name, view);
+    }
+
+    pub fn get_view(&self, name: &String) -> Option<&View> {
+        self.views.get(name)
+    }
+
+    pub fn get_view_mut(&mut self, name: &String) -> Option<&mut View> {
+        self.views.get_mut(name)
+    }
+
+    pub fn views(&self) -> std::collections::hash_map::Iter<'_, String, View> {
+        self.views.iter()
+    }
+
+    pub fn views_mut(&mut self) -> std::collections::hash_map::IterMut<'_, String, View> {
+        self.views.iter_mut()
+    }
+
+    pub fn add_star(&mut self, star: Star) {
+        self.data.stars.push(star);
+    }
+
+    pub fn stars(&self) -> std::slice::Iter<'_, Star> {
+        self.data.stars.iter()
     }
 }
 

@@ -174,36 +174,29 @@ fn invoke_solver(project: &mut Project) -> Result<(), Box<dyn Error>> {
 
         post_newtonian_solver_run(solver, 0.01, 2000);
 
-        let data = post_newtonian_solver_n_body_source_data(solver, n_body_source);
+        let n_body_source_data = post_newtonian_solver_n_body_source_data(solver, n_body_source);
 
-        let max_time = n_body_source_data_max_time(data);
-        let steps = n_body_source_data_steps(data);
-        let n = n_body_source_data_n(data);
+        let max_time = n_body_source_data_max_time(n_body_source_data);
+        let steps = n_body_source_data_steps(n_body_source_data);
+        let n = n_body_source_data_n(n_body_source_data);
 
-        let mut view = View {
-            max_time,
-            steps,
-            stars,
-            data: Vec::with_capacity((steps * n) as usize),
-        };
+        let view = View::new(max_time, steps as usize - 1, stars, |time, data| {
+            let index = (time / max_time).round() as usize;
 
-        for i in 0..=steps {
-            let data_slice =
-                std::slice::from_raw_parts(n_body_source_data_slice(data, i), n as usize);
-
-            view.data.extend_from_slice(
-                &data_slice
-                    .iter()
-                    .map(|nbody| StarData {
-                        pos: DVec3::new(nbody.x, nbody.y, nbody.z),
-                        vel: DVec3::new(nbody.velx, nbody.vely, nbody.velz),
-                    })
-                    .collect::<Box<[_]>>(),
+            let data_slice = std::slice::from_raw_parts(
+                n_body_source_data_slice(n_body_source_data, index as u32),
+                n as usize,
             );
-        }
 
-        project.views.clear();
-        project.views.push((String::from("post_newtonian"), view));
+            for i in 0..data_slice.len() {
+                data[i] = StarData {
+                    pos: DVec3::new(data_slice[i].x, data_slice[i].y, data_slice[i].z),
+                    vel: DVec3::new(data_slice[i].velx, data_slice[i].vely, data_slice[i].velz),
+                }
+            }
+        });
+
+        project.insert_view("post_newtonian".into(), view);
 
         post_newtonian_solver_detach_n_body_source(solver, n_body_source);
 
