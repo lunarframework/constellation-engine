@@ -1,4 +1,4 @@
-extends Control
+extends PanelContainer
 
 onready var project_manager = ProjectManager.new()
 
