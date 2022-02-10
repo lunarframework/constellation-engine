@@ -1,7 +1,0 @@
-.import/
-.mono/
-*.translation
-export_presets.cfg
-
-/native/target/*
-/native/Cargo.lock
