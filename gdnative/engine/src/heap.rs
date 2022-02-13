@@ -84,6 +84,7 @@ impl Heap {
 #[derive(Clone, Copy, Debug, Hash, Eq, PartialEq)]
 pub struct HeapPointer(usize, TypeId);
 
+#[derive(Debug)]
 struct HeapVec {
     type_id: TypeId,
     type_layout: Layout,
@@ -123,6 +124,8 @@ impl HeapVec {
                 .cast::<T>();
 
             std::ptr::copy_nonoverlapping(&data, dst, 1);
+
+            std::mem::forget(data);
         }
 
         HeapPointer(index, self.type_id)
@@ -291,6 +294,19 @@ impl HeapVec {
 impl Drop for HeapVec {
     fn drop(&mut self) {
         self.clear();
+
+        unsafe {
+            if !self.elements.is_null() {
+                std::alloc::dealloc(
+                    self.elements,
+                    Layout::from_size_align(
+                        self.type_layout.size() * self.count,
+                        self.type_layout.align(),
+                    )
+                    .unwrap(),
+                );
+            }
+        }
     }
 }
 

@@ -1,8 +1,10 @@
+use super::Solver;
 use super::{Object, ObjectRegister, System, SystemRegister};
 use crate::heap::Iter as HeapIter;
 use crate::heap::IterMut as HeapIterMut;
 use crate::heap::{Heap, HeapError, HeapPointer};
 use hashbrown::HashMap;
+use std::cell::RefCell;
 use std::marker::PhantomData;
 use thiserror::Error;
 
@@ -34,23 +36,26 @@ pub struct ObjectId(HeapPointer);
 /// A System Manager or tree. It stores the hierarchy of systems and objects connected to a given root,
 /// and manages deletion, iteration, and serialization
 pub struct SystemManager {
-    systems: Heap,
-    hierarchy: HashMap<SystemId, SystemContext>,
-
-    root: SystemId,
-    root_children: Heap,
+    base: SystemContext,
 }
 
 impl SystemManager {
     /// Creates a new system manager from a given root.
-    pub fn new<S: System>(mut root: S) -> Self {
+    pub fn new<S: System>(root: S, solver: S::Solver) -> Self {
         let mut systems = Heap::new();
-        systems.register::<S>();
+        systems.register::<SystemStorage<S>>();
 
-        Self::register_subsystems(&mut systems, &mut root);
-        let children = Self::create_child_heap(&mut root);
+        Self::register_subsystems(&mut systems, &root);
+        let children = Self::create_child_heap(&root);
 
-        let root = SystemId(systems.insert(root).unwrap());
+        let root = SystemId(
+            systems
+                .insert(SystemStorage {
+                    system: root,
+                    solver,
+                })
+                .unwrap(),
+        );
 
         Self {
             systems,
@@ -65,20 +70,41 @@ impl SystemManager {
         self.root
     }
 
+    /// Invokes a system's solver on that system
+    pub fn solve<S: System>(&mut self, system: SystemId) -> Result<(), SystemManagerError> {
+        let subsystem = self.systems.get_mut::<SystemStorage<S>>(system.0)?;
+
+        // subsystem.solver.solve(self);
+
+        Ok(())
+    }
+
+    pub fn system<S: System>(&self, system: SystemId) -> Result<&S, SystemManagerError> {
+        Ok(&self.systems.get::<SystemStorage<S>>(system.0)?.system)
+    }
+
+    pub fn system_mut<S: System>(
+        &mut self,
+        system: SystemId,
+    ) -> Result<&mut S, SystemManagerError> {
+        Ok(&mut self.systems.get_mut::<SystemStorage<S>>(system.0)?.system)
+    }
+
     /// Adds a subsystem to a parent system
     pub fn add_subsystem<S: System>(
         &mut self,
         parent: SystemId,
-        mut system: S,
+        system: S,
+        solver: S::Solver,
     ) -> Result<SystemId, SystemManagerError> {
-        Self::register_subsystems(&mut self.systems, &mut system);
+        Self::register_subsystems(&mut self.systems, &system);
 
-        let children = Self::create_child_heap(&mut system);
+        let children = Self::create_child_heap(&system);
 
         // assert!(self.system_exists(parent));
-        let system = SystemId(self.systems.insert(system)?);
+        let system = SystemId(self.systems.insert(SystemStorage { system, solver })?);
 
-        let pointer = self.children_mut(parent).insert(SubSystemPtr::<S> {
+        let pointer = self.children_mut(parent).insert(SystemPtr::<S> {
             system,
             _marker: PhantomData::<S>,
         })?;
@@ -86,7 +112,7 @@ impl SystemManager {
         let context = SystemContext {
             _parent: parent,
             pointer,
-            children,
+            children: RefCell::new(children),
         };
 
         self.hierarchy.insert(system, context);
@@ -118,7 +144,8 @@ impl SystemManager {
         object: O,
     ) -> Result<ObjectId, SystemManagerError> {
         Ok(ObjectId(
-            self.children_mut(parent).insert(Child::<O> { object })?,
+            self.children_mut(parent)
+                .insert(ObjectStorage::<O> { object })?,
         ))
     }
 
@@ -133,59 +160,59 @@ impl SystemManager {
         Ok(())
     }
 
-    /// Iterates non-mutably through all subsystems of a given parent.
-    pub fn subsystems<S: System>(
-        &self,
-        parent: SystemId,
-    ) -> Result<SubSystems<'_, S>, SystemManagerError> {
-        Ok(SubSystems::<S> {
-            systems: &self.systems,
-            children: self.children(parent).iter::<SubSystemPtr<S>>()?,
-        })
-    }
+    // /// Iterates non-mutably through all subsystems of a given parent.
+    // pub fn subsystems<S: System>(
+    //     &self,
+    //     parent: SystemId,
+    // ) -> Result<SubSystems<'_, S>, SystemManagerError> {
+    //     Ok(SubSystems::<S> {
+    //         systems: &self.systems,
+    //         children: self.children(parent).iter::<SubSystemPtr<S>>()?,
+    //     })
+    // }
 
-    /// Iterates mutably through all subsystems of a given parent.
-    pub fn subsystems_mut<S: System>(
-        &mut self,
-        parent: SystemId,
-    ) -> Result<SubSystemsMut<'_, S>, SystemManagerError> {
-        // let iter_mut = self.children_mut(parent).iter_mut::<SubSystemPtr<S>>();
+    // /// Iterates mutably through all subsystems of a given parent.
+    // pub fn subsystems_mut<S: System>(
+    //     &mut self,
+    //     parent: SystemId,
+    // ) -> Result<SubSystemsMut<'_, S>, SystemManagerError> {
+    //     // let iter_mut = self.children_mut(parent).iter_mut::<SubSystemPtr<S>>();
 
-        let iter_mut = if parent != self.root {
-            self.hierarchy
-                .get_mut(&parent)
-                .unwrap()
-                .children
-                .iter_mut::<SubSystemPtr<S>>()
-        } else {
-            self.root_children.iter_mut::<SubSystemPtr<S>>()
-        }?;
+    //     let iter_mut = if parent != self.root {
+    //         self.hierarchy
+    //             .get_mut(&parent)
+    //             .unwrap()
+    //             .children
+    //             .iter_mut::<SubSystemPtr<S>>()
+    //     } else {
+    //         self.root_children.iter_mut::<SubSystemPtr<S>>()
+    //     }?;
 
-        Ok(SubSystemsMut::<S> {
-            systems: &mut self.systems,
-            children: iter_mut,
-        })
-    }
+    //     Ok(SubSystemsMut::<S> {
+    //         systems: &mut self.systems,
+    //         children: iter_mut,
+    //     })
+    // }
 
-    /// Iterates through the objects of a given system
-    pub fn objects<O: Object>(
-        &self,
-        parent: SystemId,
-    ) -> Result<Objects<'_, O>, SystemManagerError> {
-        Ok(Objects::<O> {
-            children: self.children(parent).iter::<Child<O>>()?,
-        })
-    }
+    // /// Iterates through the objects of a given system
+    // pub fn objects<O: Object>(
+    //     &self,
+    //     parent: SystemId,
+    // ) -> Result<Objects<'_, O>, SystemManagerError> {
+    //     Ok(Objects::<O> {
+    //         children: self.children(parent).iter::<Child<O>>()?,
+    //     })
+    // }
 
-    /// Iterates mutably through the objects of a system.
-    pub fn objects_mut<O: Object>(
-        &mut self,
-        parent: SystemId,
-    ) -> Result<ObjectsMut<'_, O>, SystemManagerError> {
-        Ok(ObjectsMut::<O> {
-            children: self.children_mut(parent).iter_mut::<Child<O>>()?,
-        })
-    }
+    // /// Iterates mutably through the objects of a system.
+    // pub fn objects_mut<O: Object>(
+    //     &mut self,
+    //     parent: SystemId,
+    // ) -> Result<ObjectsMut<'_, O>, SystemManagerError> {
+    //     Ok(ObjectsMut::<O> {
+    //         children: self.children_mut(parent).iter_mut::<Child<O>>()?,
+    //     })
+    // }
 
     fn children(&self, parent: SystemId) -> &Heap {
         if parent != self.root {
@@ -203,22 +230,22 @@ impl SystemManager {
         }
     }
 
-    fn register_subsystems(systems: &mut Heap, system: &mut impl System) {
-        let mut register = SubSystemRegister { heap: systems };
+    fn register_subsystems(systems: &mut Heap, system: &impl System) {
+        let mut register = SystemStorageRegister { heap: systems };
 
         system.register_subsystems(&mut register);
     }
 
-    fn create_child_heap(system: &mut impl System) -> Heap {
+    fn create_child_heap(system: &impl System) -> Heap {
         let mut heap = Heap::new();
 
-        let mut child_register = ChildRegister { heap: &mut heap };
+        let mut object_register = ObjectStorageRegister { heap: &mut heap };
 
-        system.register_objects(&mut child_register);
+        system.register_objects(&mut object_register);
 
-        let mut subsystem_ptr_register = SubSystemPtrRegister { heap: &mut heap };
+        let mut system_ptr_register = SystemPtrRegister { heap: &mut heap };
 
-        system.register_subsystems(&mut subsystem_ptr_register);
+        system.register_subsystems(&mut system_ptr_register);
 
         heap
     }
@@ -234,113 +261,108 @@ struct SystemContext {
     // Pointer to current system in parent heap
     pointer: HeapPointer,
     // Heap that stores children of current systems
-    children: Heap,
+    children: RefCell<Heap>,
 }
 
 // **********************
 // Iterators ************
 // **********************
 
-pub struct SubSystems<'a, S: System> {
-    systems: &'a Heap,
-    children: HeapIter<'a, SubSystemPtr<S>>,
-}
-
-impl<'a, S: System> Iterator for SubSystems<'a, S> {
-    type Item = (SystemId, &'a S);
-
-    fn next(&mut self) -> Option<Self::Item> {
-        let subsystem = self.children.next()?.1.system;
-        let system = self.systems.get::<S>(subsystem.0).unwrap();
-
-        Some((subsystem, system))
-    }
-}
-
-pub struct SubSystemsMut<'a, S: System> {
+pub struct SystemView<'a, S: System> {
     systems: &'a mut Heap,
-    children: HeapIterMut<'a, SubSystemPtr<S>>,
+    children: &'a mut Heap,
 }
 
-impl<'a, S: System> Iterator for SubSystemsMut<'a, S> {
-    type Item = (SystemId, &'a mut S);
+// pub struct SubSystems<'a, S: System> {
+//     systems: &'a Heap,
+//     children: HeapIter<'a, SubSystemPtr<S>>,
+// }
 
-    fn next(&mut self) -> Option<Self::Item> {
-        let subsystem = self.children.next()?.1.system;
+// impl<'a, S: System> Iterator for SubSystems<'a, S> {
+//     type Item = (SystemId, &'a S);
 
-        unsafe {
-            let system_ptr = self.systems.get_mut::<S>(subsystem.0).unwrap() as *mut S;
+//     fn next(&mut self) -> Option<Self::Item> {
+//         let subsystem = self.children.next()?.1.system;
+//         let system = self.systems.get::<S>(subsystem.0).unwrap();
 
-            Some((subsystem, system_ptr.as_mut().unwrap()))
-        }
-    }
-}
+//         Some((subsystem, system))
+//     }
+// }
 
-pub struct Objects<'a, O: Object> {
-    children: HeapIter<'a, Child<O>>,
-}
+// pub struct SubSystemsMut<'a, S: System> {
+//     systems: &'a mut Heap,
+//     children: HeapIterMut<'a, SubSystemPtr<S>>,
+// }
 
-impl<'a, O: Object> Iterator for Objects<'a, O> {
-    type Item = (ObjectId, &'a O);
+// impl<'a, S: System> Iterator for SubSystemsMut<'a, S> {
+//     type Item = (SystemId, &'a mut S);
 
-    fn next(&mut self) -> Option<Self::Item> {
-        let child = self.children.next()?;
+//     fn next(&mut self) -> Option<Self::Item> {
+//         let subsystem = self.children.next()?.1.system;
 
-        Some((ObjectId(child.0), &child.1.object))
-    }
-}
+//         unsafe {
+//             let system_ptr = self.systems.get_mut::<S>(subsystem.0).unwrap() as *mut S;
 
-pub struct ObjectsMut<'a, O: Object> {
-    children: HeapIterMut<'a, Child<O>>,
-}
+//             Some((subsystem, system_ptr.as_mut().unwrap()))
+//         }
+//     }
+// }
 
-impl<'a, O: Object> Iterator for ObjectsMut<'a, O> {
-    type Item = (ObjectId, &'a mut O);
+// pub struct Objects<'a, O: Object> {
+//     children: HeapIter<'a, Child<O>>,
+// }
 
-    fn next(&mut self) -> Option<Self::Item> {
-        let child = self.children.next()?;
+// impl<'a, O: Object> Iterator for Objects<'a, O> {
+//     type Item = (ObjectId, &'a O);
 
-        Some((ObjectId(child.0), &mut child.1.object))
-    }
-}
+//     fn next(&mut self) -> Option<Self::Item> {
+//         let child = self.children.next()?;
+
+//         Some((ObjectId(child.0), &child.1.object))
+//     }
+// }
+
+// pub struct ObjectsMut<'a, O: Object> {
+//     children: HeapIterMut<'a, Child<O>>,
+// }
+
+// impl<'a, O: Object> Iterator for ObjectsMut<'a, O> {
+//     type Item = (ObjectId, &'a mut O);
+
+//     fn next(&mut self) -> Option<Self::Item> {
+//         let child = self.children.next()?;
+
+//         Some((ObjectId(child.0), &mut child.1.object))
+//     }
+// }
 
 // Registration
 
-struct Child<O: Object> {
+struct ObjectStorage<O: Object> {
     object: O,
 }
 
-struct ChildRegister<'a> {
+struct ObjectStorageRegister<'a> {
     heap: &'a mut Heap,
 }
 
-impl<'a> ObjectRegister for ChildRegister<'a> {
+impl<'a> ObjectRegister for ObjectStorageRegister<'a> {
     fn register<O: Object>(&mut self) {
-        self.heap.register::<Child<O>>();
+        self.heap.register::<ObjectStorage<O>>();
     }
 }
 
-struct SubSystemRegister<'a> {
+struct SystemStorage<S: System> {
+    solver: S::Solver,
+    system: S,
+}
+
+struct SystemStorageRegister<'a> {
     heap: &'a mut Heap,
 }
 
-impl<'a> SystemRegister for SubSystemRegister<'a> {
+impl<'a> SystemRegister for SystemStorageRegister<'a> {
     fn register<S: System>(&mut self) {
-        self.heap.register::<S>();
-    }
-}
-
-struct SubSystemPtr<S: System> {
-    system: SystemId,
-    _marker: PhantomData<S>,
-}
-
-struct SubSystemPtrRegister<'a> {
-    heap: &'a mut Heap,
-}
-
-impl<'a> SystemRegister for SubSystemPtrRegister<'a> {
-    fn register<S: System>(&mut self) {
-        self.heap.register::<SubSystemPtr<S>>();
+        self.heap.register::<SystemStorage<S>>();
     }
 }

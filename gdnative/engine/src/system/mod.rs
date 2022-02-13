@@ -1,6 +1,14 @@
-mod manager;
+mod node;
 
-pub use manager::{SystemId, SystemManager};
+pub mod object;
+pub mod solver;
+
+pub use node::{
+    ObjectId, Objects, ObjectsMut, SystemError, SystemId, SystemNode, SystemNodeChildren,
+    SystemNodes, SystemNodesMut,
+};
+pub use object::Object;
+pub use solver::{EmptySolver, Solver};
 
 use std::any::Any;
 
@@ -13,11 +21,11 @@ pub trait ObjectRegister {
 }
 
 pub trait System: Any {
-    fn register_subsystems<R: SystemRegister>(&mut self, _reg: &mut R) {}
-    fn register_objects<R: ObjectRegister>(&mut self, _reg: &mut R) {}
-}
+    type Solver: Solver;
 
-pub trait Object: Any {}
+    fn register_subsystems<R: SystemRegister>(&self, _reg: &mut R);
+    fn register_objects<R: ObjectRegister>(&self, _reg: &mut R);
+}
 
 #[cfg(test)]
 mod tests {
@@ -26,18 +34,26 @@ mod tests {
     struct Root;
 
     impl System for Root {
-        fn register_subsystems<R: SystemRegister>(&mut self, reg: &mut R) {
+        type Solver = EmptySolver;
+
+        fn register_subsystems<R: SystemRegister>(&self, reg: &mut R) {
             reg.register::<SubSystem>();
         }
 
-        fn register_objects<R: ObjectRegister>(&mut self, reg: &mut R) {
-            reg.register::<SubObject>();
-        }
+        fn register_objects<R: ObjectRegister>(&self, reg: &mut R) {}
     }
 
     struct SubSystem;
 
-    impl System for SubSystem {}
+    impl System for SubSystem {
+        type Solver = EmptySolver;
+
+        fn register_subsystems<R: SystemRegister>(&self, _reg: &mut R) {}
+
+        fn register_objects<R: ObjectRegister>(&self, reg: &mut R) {
+            reg.register::<SubObject>();
+        }
+    }
 
     struct SubObject;
 
@@ -45,33 +61,21 @@ mod tests {
 
     #[test]
     fn system_manager() {
-        let mut system_manager = SystemManager::new(Root);
+        let mut root = SystemNode::new(Root, EmptySolver);
+        let mut subsystem = SystemNode::new(SubSystem, EmptySolver);
 
-        let root = system_manager.root();
+        let object_id = subsystem.add_object(SubObject).unwrap();
+        let subsystem_id = root.add_system_node(subsystem).unwrap();
 
-        let subsystem_id = system_manager.add_subsystem(root, SubSystem).unwrap();
-
-        let object_id = system_manager.add_object(root, SubObject).unwrap();
-
-        for subsystem in system_manager.subsystems::<SubSystem>(root).unwrap() {
-            assert!(subsystem_id == subsystem.0);
+        for (id, system) in root.system_nodes::<SubSystem>().unwrap() {
+            assert!(id == subsystem_id);
+            for (id, _object) in system.objects::<SubObject>().unwrap() {
+                assert!(id == object_id);
+            }
         }
 
-        for object in system_manager.objects::<SubObject>(root).unwrap() {
-            assert!(object_id == object.0);
-        }
+        root.remove_system_node(subsystem_id).unwrap();
 
-        system_manager.remove_subsystem(root, subsystem_id).unwrap();
-
-        system_manager.remove_object(root, object_id).unwrap();
-
-        assert!(
-            system_manager
-                .subsystems::<SubSystem>(root)
-                .unwrap()
-                .count()
-                == 0
-        );
-        assert!(system_manager.objects::<SubObject>(root).unwrap().count() == 0);
+        assert!(root.system_nodes::<SubSystem>().unwrap().count() == 0);
     }
 }
