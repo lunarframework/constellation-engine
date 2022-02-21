@@ -11,6 +11,8 @@ engine-sys = { path = "engine-sys", version = "0.1.0" }
 glam = { version = "0.20.2", features = ["bytemuck", "serde"] }
 hashbrown = "0.12.0"
 thiserror = "1.0"
+bytemuck = "1.7.3"
+hecs = { version = "0.7.6", features = ["column-serialize"] }
 
 serde = { version = "1.0.132", features = ["derive"] }
 bincode = "1.3.3"

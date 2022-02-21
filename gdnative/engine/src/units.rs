@@ -46,36 +46,3 @@ pub struct Units {
     time: Time,
     mass: Mass,
 }
-
-#[derive(Debug, Deserialize, Serialize)]
-pub enum Domain {
-    /// Rect centered on origin with the given dimensions
-    Rect { width: f64, height: f64, depth: f64 },
-}
-
-impl Default for Domain {
-    fn default() -> Self {
-        Self::Rect {
-            width: 1.0,
-            height: 1.0,
-            depth: 1.0,
-        }
-    }
-}
-
-#[derive(Debug, Deserialize, Serialize)]
-pub struct Config {
-    pub name: String,
-    pub units: Units,
-    // pub domain: Domain,
-}
-
-impl Default for Config {
-    fn default() -> Self {
-        Self {
-            name: String::from("default-name"),
-            units: Units::default(),
-            // domain: Default::default(),
-        }
-    }
-}
