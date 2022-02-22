@@ -3,8 +3,7 @@ mod node;
 mod record;
 mod tree;
 
-use hecs::serialize::column::{DeserializeContext, SerializeContext};
-use serde::{Deserialize, Deserializer, Serialize, Serializer};
+use serde::{Deserializer, Serializer};
 use std::any::Any;
 
 pub use hecs::World;
@@ -15,7 +14,7 @@ pub use tree::{SystemConfig, SystemTree};
 
 pub trait Object: Any {}
 
-pub trait System: Send + Sync + Any {
+pub trait System: Send + Sync + Sized + Any {
     /// Sets up the system and adds any potential subsystems to the world.
     /// Recursively calls setup on any subsystems
     fn setup(
@@ -28,18 +27,27 @@ pub trait System: Send + Sync + Any {
 
     /// Update the system and all subsystems
     fn update(&mut self, children: &mut World, config: &SystemConfig, delta: f64);
-}
 
-pub trait SerializableSystem<'de>: Serialize + Deserialize<'de> {
-    type SerContext: SerializeContext;
-    type DeContext: DeserializeContext;
+    fn serialize_system<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer;
 
-    fn ser_context() -> Self::SerContext;
-    fn de_context() -> Self::DeContext;
+    fn deserialize_system<'de, D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>;
+
+    fn serialize_children<S>(children: &World, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer;
+
+    fn deserialize_children<'de, D>(deserializer: D) -> Result<World, D::Error>
+    where
+        D: Deserializer<'de>;
 }
 
 pub trait Root {
     fn init_config(config: &mut SystemConfig);
+
     fn serialize_config<S>(config: &SystemConfig, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: Serializer;

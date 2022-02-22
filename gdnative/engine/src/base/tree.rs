@@ -1,15 +1,11 @@
-use super::{Root, SerializableSystem, System, SystemNode};
+use super::{Root, System, SystemNode};
 use hashbrown::{hash_map::DefaultHashBuilder, HashMap};
-use serde::{
-    de::{self, MapAccess, SeqAccess, Visitor},
-    ser::SerializeStruct,
-    Deserialize, Deserializer, Serialize, Serializer,
-};
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use std::any::{Any, TypeId};
-use std::fmt;
 use std::hash::{BuildHasher, BuildHasherDefault, Hasher};
 use std::marker::PhantomData;
 
+#[derive(Serialize, Deserialize)]
 pub struct SystemTree<R: System + Root> {
     root: SystemNode<R>,
     config: SystemConfigWrapper<R>,
@@ -39,93 +35,6 @@ impl<R: System + Root> SystemTree<R> {
 
     pub fn config_mut(&mut self) -> &mut SystemConfig {
         &mut self.config.0
-    }
-}
-
-impl<'de, R: System + Root + SerializableSystem<'de>> Serialize for SystemTree<R> {
-    fn serialize<Ser>(&self, serializer: Ser) -> Result<Ser::Ok, Ser::Error>
-    where
-        Ser: Serializer,
-    {
-        let mut state = serializer.serialize_struct("SystemTree", 2)?;
-        state.serialize_field("root", &self.root)?;
-        state.serialize_field("config", &self.config)?;
-        state.end()
-    }
-}
-
-impl<'de, R: System + Root + SerializableSystem<'de>> Deserialize<'de> for SystemTree<R> {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: Deserializer<'de>,
-    {
-        #[derive(Deserialize)]
-        #[serde(field_identifier, rename_all = "lowercase")]
-        enum Field {
-            Root,
-            Config,
-        }
-
-        struct SystemTreeVistor<'de, RPass: System + Root + SerializableSystem<'de>>(
-            std::marker::PhantomData<&'de RPass>,
-        );
-
-        impl<'de, RPass: System + Root + SerializableSystem<'de>> Visitor<'de>
-            for SystemTreeVistor<'de, RPass>
-        {
-            type Value = SystemTree<RPass>;
-
-            fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
-                formatter.write_str("struct SystemTree")
-            }
-
-            fn visit_seq<V>(self, mut seq: V) -> Result<SystemTree<RPass>, V::Error>
-            where
-                V: SeqAccess<'de>,
-            {
-                let root = seq
-                    .next_element()?
-                    .ok_or_else(|| de::Error::invalid_length(0, &self))?;
-                let config = seq
-                    .next_element()?
-                    .ok_or_else(|| de::Error::invalid_length(1, &self))?;
-                Ok(SystemTree { root, config })
-            }
-
-            fn visit_map<V>(self, mut map: V) -> Result<SystemTree<RPass>, V::Error>
-            where
-                V: MapAccess<'de>,
-            {
-                let mut root = None;
-                let mut config = None;
-                while let Some(key) = map.next_key()? {
-                    match key {
-                        Field::Root => {
-                            if root.is_some() {
-                                return Err(de::Error::duplicate_field("root"));
-                            }
-                            root = Some(map.next_value()?);
-                        }
-                        Field::Config => {
-                            if config.is_some() {
-                                return Err(de::Error::duplicate_field("config"));
-                            }
-                            config = Some(map.next_value()?);
-                        }
-                    }
-                }
-                let root = root.ok_or_else(|| de::Error::missing_field("root"))?;
-                let config = config.ok_or_else(|| de::Error::missing_field("config"))?;
-                Ok(SystemTree { root, config })
-            }
-        }
-
-        const FIELDS: &'static [&'static str] = &["root", "config"];
-        deserializer.deserialize_struct(
-            "SystemTree",
-            FIELDS,
-            SystemTreeVistor::<'de, R>(std::marker::PhantomData),
-        )
     }
 }
 
