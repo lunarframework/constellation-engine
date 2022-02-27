@@ -46,7 +46,7 @@ pub trait System: Send + Sync + Sized + Any {
 }
 
 pub trait Root {
-    fn init_config(config: &mut SystemConfig);
+    fn default_config() -> SystemConfig;
 
     fn serialize_config<S>(config: &SystemConfig, serializer: S) -> Result<S::Ok, S::Error>
     where

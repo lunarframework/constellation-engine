@@ -1,34 +1,133 @@
-[gd_scene load_steps=4 format=2]
+[gd_scene load_steps=5 format=2]
 
-[ext_resource path="res://main/menu_bar/menu_bar.theme" type="Theme" id=1]
+[ext_resource path="res://main/menu_bar/new/grav.gd" type="Script" id=1]
 [ext_resource path="res://main/menu_bar/system.gd" type="Script" id=2]
 [ext_resource path="res://main/menu_bar/help.gd" type="Script" id=3]
+[ext_resource path="res://main/menu_bar/menu_bar.gd" type="Script" id=4]
 
 [node name="MenuBar" type="PanelContainer"]
 anchor_right = 1.0
 anchor_bottom = 1.0
 margin_bottom = -580.0
-theme = ExtResource( 1 )
+script = ExtResource( 4 )
 __meta__ = {
 "_edit_use_anchors_": false
 }
 
-[node name="HBox" type="HBoxContainer" parent="."]
-margin_right = 1024.0
+[node name="Padding" type="MarginContainer" parent="."]
+margin_left = 7.0
+margin_top = 7.0
+margin_right = 1017.0
+margin_bottom = 27.0
+
+[node name="HBox" type="HBoxContainer" parent="Padding"]
+margin_right = 1010.0
 margin_bottom = 20.0
+custom_constants/separation = 10
 __meta__ = {
 "_edit_use_anchors_": false
 }
 
-[node name="System" type="MenuButton" parent="HBox"]
+[node name="System" type="MenuButton" parent="Padding/HBox"]
 margin_right = 59.0
 margin_bottom = 20.0
 text = "System"
 script = ExtResource( 2 )
 
-[node name="Help" type="MenuButton" parent="HBox"]
-margin_left = 63.0
+[node name="Gravitational" type="WindowDialog" parent="Padding/HBox/System"]
+margin_left = 108.0
+margin_top = 70.0
+margin_right = 322.0
+margin_bottom = 176.0
+rect_min_size = Vector2( 173, 75 )
+window_title = "Create Gravitational"
+script = ExtResource( 1 )
+__meta__ = {
+"_edit_use_anchors_": false
+}
+
+[node name="Contents" type="VBoxContainer" parent="Padding/HBox/System/Gravitational"]
+anchor_right = 1.0
+anchor_bottom = 1.0
+margin_right = 1.0
+margin_bottom = -40.0
+__meta__ = {
+"_edit_use_anchors_": false
+}
+
+[node name="Header" type="MarginContainer" parent="Padding/HBox/System/Gravitational/Contents"]
+margin_right = 215.0
+margin_bottom = 51.0
+custom_constants/margin_right = 5
+custom_constants/margin_top = 10
+custom_constants/margin_left = 5
+custom_constants/margin_bottom = 10
+
+[node name="Label" type="Label" parent="Padding/HBox/System/Gravitational/Contents/Header"]
+margin_left = 5.0
+margin_top = 10.0
+margin_right = 210.0
+margin_bottom = 41.0
+text = "Create new gravitational system?"
+autowrap = true
+
+[node name="Name" type="HBoxContainer" parent="Padding/HBox/System/Gravitational/Contents"]
+margin_top = 55.0
+margin_right = 215.0
+margin_bottom = 79.0
+
+[node name="Label" type="Label" parent="Padding/HBox/System/Gravitational/Contents/Name"]
+margin_top = 5.0
+margin_right = 46.0
+margin_bottom = 19.0
+text = "Name: "
+
+[node name="Edit" type="LineEdit" parent="Padding/HBox/System/Gravitational/Contents/Name"]
+margin_left = 50.0
+margin_right = 215.0
+margin_bottom = 24.0
+size_flags_horizontal = 3
+text = "Untitled"
+
+[node name="Buttons" type="HBoxContainer" parent="Padding/HBox/System/Gravitational/Contents"]
+margin_top = 83.0
+margin_right = 215.0
+margin_bottom = 103.0
+
+[node name="Create" type="Button" parent="Padding/HBox/System/Gravitational/Contents/Buttons"]
 margin_right = 105.0
+margin_bottom = 20.0
+size_flags_horizontal = 3
+text = "Create"
+
+[node name="Cancel" type="Button" parent="Padding/HBox/System/Gravitational/Contents/Buttons"]
+margin_left = 109.0
+margin_right = 215.0
+margin_bottom = 20.0
+size_flags_horizontal = 3
+text = "Cancel"
+
+[node name="Help" type="MenuButton" parent="Padding/HBox"]
+margin_left = 69.0
+margin_right = 111.0
 margin_bottom = 20.0
 text = "Help"
 script = ExtResource( 3 )
+
+[node name="About" type="WindowDialog" parent="Padding/HBox/Help"]
+margin_left = 91.0
+margin_top = 68.0
+margin_right = 313.0
+margin_bottom = 156.0
+window_title = "About"
+__meta__ = {
+"_edit_use_anchors_": false
+}
+
+[node name="Label" type="Label" parent="Padding/HBox/Help/About"]
+anchor_right = 1.0
+anchor_bottom = 1.0
+text = "    Constellation Engine is a program used to simulate and visualize physical phenomena. Created by Lukas Mesicek."
+align = 1
+valign = 1
+autowrap = true

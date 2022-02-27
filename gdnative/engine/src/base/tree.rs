@@ -13,11 +13,9 @@ pub struct SystemTree<R: System + Root> {
 
 impl<R: System + Root> SystemTree<R> {
     pub fn new(root: R) -> Self {
-        let mut config = SystemConfig::new();
-        R::init_config(&mut config);
         Self {
             root: SystemNode::new(root),
-            config: SystemConfigWrapper(SystemConfig::new(), PhantomData),
+            config: SystemConfigWrapper(R::default_config(), PhantomData),
         }
     }
 

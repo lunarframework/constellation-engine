@@ -10,11 +10,29 @@ config_version=4
 
 _global_script_classes=[ {
 "base": "Reference",
+"class": "GravDescriptor",
+"language": "NativeScript",
+"path": "res://gdnative/grav_descriptor.gdns"
+}, {
+"base": "Reference",
+"class": "SystemContext",
+"language": "GDScript",
+"path": "res://classes/system_context.gd"
+}, {
+"base": "Reference",
+"class": "SystemHierarchy",
+"language": "NativeScript",
+"path": "res://gdnative/system_hierarchy.gdns"
+}, {
+"base": "Reference",
 "class": "SystemManager",
 "language": "NativeScript",
 "path": "res://gdnative/system_manager.gdns"
 } ]
 _global_script_class_icons={
+"GravDescriptor": "",
+"SystemContext": "",
+"SystemHierarchy": "",
 "SystemManager": ""
 }
 
@@ -24,6 +42,10 @@ config/name="constellation-engine"
 run/main_scene="res://main/main.tscn"
 config/icon="res://icon.png"
 
+[debug]
+
+settings/stdout/verbose_stdout=true
+
 [global]
 
 "default enviornment"=false
@@ -32,7 +54,7 @@ config/icon="res://icon.png"
 
 camera_focus={
 "deadzone": 0.5,
-"events": [ Object(InputEventMouseButton,"resource_local_to_scene":false,"resource_name":"","device":0,"alt":false,"shift":false,"control":false,"meta":false,"command":false,"button_mask":0,"position":Vector2( 0, 0 ),"global_position":Vector2( 0, 0 ),"factor":1.0,"button_index":1,"pressed":false,"doubleclick":false,"script":null)
+"events": [ Object(InputEventMouseButton,"resource_local_to_scene":false,"resource_name":"","device":0,"alt":false,"shift":false,"control":false,"meta":false,"command":false,"button_mask":0,"position":Vector2( 0, 0 ),"global_position":Vector2( 0, 0 ),"factor":1.0,"button_index":2,"pressed":false,"doubleclick":false,"script":null)
  ]
 }
 camera_forward={

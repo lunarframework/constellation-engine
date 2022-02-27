@@ -1,51 +1,52 @@
 extends PanelContainer
 
 onready var system_manager = SystemManager.new()
-
-onready var menu_bar = $VBox/MenuBar
-
-onready var star_prefab = preload("res://celestial/star/star.tscn")
-onready var stars = $VBox/HBox/Viewport/Viewport/Stars
+onready var system_trees = []
 	
+onready var menu_bar = $VBox/MenuBar
+onready var views = $VBox/Docks/HBox/Center/Views
 
 func _ready():
-	OS.set_window_title("Constellation Viewer")
+	OS.set_window_title("Constellation Engine")
 	
+	menu_bar.connect("system_created_grav", self, "_on_system_created_grav")
+	menu_bar.connect("system_opened", self, "_on_system_opened")
+	menu_bar.connect("system_closed", self, "_on_system_closed")
+	menu_bar.connect("system_saved", self, "_on_system_saved")
 	
-func _on_edit_project():
-	for star in stars.get_children():
-		star.queue_free()
+	views.connect("system_selected", self, "_on_system_selected")
 	
-	menu_bar.on_edit_project()
+func on_system_changed(system_tree):
+	menu_bar.on_system_changed(system_tree)
 	
+func _on_system_created_grav(desc):
+	print("Creating gravitational system with name: ", desc.name)
+	var hierarchy = system_manager.create_grav(desc)
 	
-func _on_closed_project():
-	menu_bar.on_close_project()
+	var tree = SystemContext.new(hierarchy)
 	
-	for star in stars.get_children():
-		star.queue_free()
+	views.add_system(tree)
 	
+func _on_system_opened(path):
+	print("Loading System from path: ", path)
 	
-func _on_File_opened_dir(dir):
-	# var error = project_manager.open(dir)
-	#if project_manager.is_open():
-	#	_on_edit_project()
-#	OS.set_window_title(str("Constellation Viewer - " + dir))
-#	else:
-#		print(error)
-	pass
+	var hierarchy = system_manager.load(path)
+	if !hierarchy.is_empty():
+		var tree = SystemContext.new(hierarchy)
+		tree.path = path
+		views.add_system(tree)
+			
+func _on_system_closed():
+	views.close_current()
 
-
-func _on_File_closed_dir():
-	#if project_manager.is_open():
-	#	_on_closed_project()
-	#	project_manager.close()
-	#
-	#	OS.set_window_title("Constellation Viewer")
-	pass
-
-func _on_Project_edited_project():
-	#if project_manager.is_open():
-	#	_on_edit_project()
-	pass
-	
+func _on_system_saved(path):
+	var current = views.get_current()
+	if current != null:
+		if path != null:
+			current.path = path
+		
+		if current.path:
+			system_manager.save(current.path, current.hierarchy)
+			
+func _on_system_selected(tree):
+	on_system_changed(tree)
