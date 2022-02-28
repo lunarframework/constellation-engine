@@ -1,8 +1,9 @@
 use crate::base::{Root, System, SystemConfig};
-// use crate::units::Units;
+use crate::global::Units;
 use hecs::World;
 use serde::{
-    de::{Error, Visitor},
+    de::{self, SeqAccess, Visitor},
+    ser::{self, SerializeSeq},
     Deserialize, Deserializer, Serialize, Serializer,
 };
 
@@ -60,7 +61,7 @@ impl System for GravitationalSystem {
 
             fn visit_unit<E>(self) -> Result<Self::Value, E>
             where
-                E: Error,
+                E: de::Error,
             {
                 Ok(())
             }
@@ -74,39 +75,56 @@ impl System for GravitationalSystem {
 
 impl Root for GravitationalSystem {
     fn default_config() -> SystemConfig {
-        SystemConfig::new()
+        let mut config = SystemConfig::new();
+
+        config.insert(Units::default());
+
+        config
     }
 
-    fn serialize_config<S>(_config: &SystemConfig, serializer: S) -> Result<S::Ok, S::Error>
+    fn serialize_config<S>(config: &SystemConfig, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: Serializer,
     {
-        serializer.serialize_unit()
+        use ser::Error;
+
+        let mut seq = serializer.serialize_seq(Some(1))?;
+        seq.serialize_element(
+            config
+                .get::<Units>()
+                .ok_or_else(|| S::Error::custom("config does not contain units"))?,
+        )?;
+        seq.end()
     }
 
     fn deserialize_config<'de, D>(deserializer: D) -> Result<SystemConfig, D::Error>
     where
         D: Deserializer<'de>,
     {
-        struct UnitVisitor;
+        struct ConfigDeserializer;
 
-        impl<'de> Visitor<'de> for UnitVisitor {
-            type Value = ();
+        impl<'de> Visitor<'de> for ConfigDeserializer {
+            type Value = SystemConfig;
 
             fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
-                formatter.write_str("A unit struct")
+                formatter.write_str("SystemConfig sequence.")
             }
 
-            fn visit_unit<E>(self) -> Result<Self::Value, E>
+            fn visit_seq<A>(self, mut seq: A) -> Result<Self::Value, A::Error>
             where
-                E: Error,
+                A: SeqAccess<'de>,
             {
-                Ok(())
+                use de::Error;
+
+                let mut config = SystemConfig::new();
+                config.insert::<Units>(
+                    seq.next_element()?
+                        .ok_or_else(|| A::Error::custom("config does not contain units"))?,
+                );
+                Ok(config)
             }
         }
 
-        deserializer.deserialize_unit(UnitVisitor)?;
-
-        Ok(SystemConfig::new())
+        deserializer.deserialize_seq(ConfigDeserializer)
     }
 }
