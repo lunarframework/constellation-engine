@@ -1,0 +1,47 @@
+[gd_scene load_steps=9 format=2]
+
+[ext_resource path="res://celestial/screenshots/star.tres" type="Shader" id=1]
+[ext_resource path="res://celestial/blackhole/blackhole.tscn" type="PackedScene" id=2]
+[ext_resource path="res://celestial/screenshots/camera.gd" type="Script" id=3]
+[ext_resource path="res://default_env.tres" type="Environment" id=4]
+
+[sub_resource type="CubeMesh" id=1]
+
+[sub_resource type="Gradient" id=2]
+offsets = PoolRealArray( 0.0190476, 0.08, 0.666667, 1 )
+colors = PoolColorArray( 0, 0, 0, 1, 0, 0.0581541, 0.288901, 1, 1, 1, 1, 1, 0, 0.198087, 0.98407, 1 )
+
+[sub_resource type="GradientTexture" id=5]
+gradient = SubResource( 2 )
+width = 128
+
+[sub_resource type="ShaderMaterial" id=4]
+shader = ExtResource( 1 )
+shader_param/star_center = Vector3( 0, 0, 0 )
+shader_param/star_radius = 1.0
+shader_param/granule_octaves = 4
+shader_param/granule_frequency = 0.5
+shader_param/granule_lacunarity = 40.0
+shader_param/sunspot_frequency = 2.7
+shader_param/sunspot_radius = 2.0
+shader_param/sunspot_cutoff = 1.0
+shader_param/fresnel_power = 3.0
+shader_param/fresnel_energy = 1.5
+shader_param/energy = 1.0
+shader_param/gradient = SubResource( 5 )
+
+[node name="Spatial" type="Spatial"]
+
+[node name="Blackhole" parent="." instance=ExtResource( 2 )]
+transform = Transform( 10, 0, 0, 0, 10, 0, 0, 0, 10, -3.67636, 0, 12.7766 )
+
+[node name="Spatial" type="Spatial" parent="."]
+
+[node name="MeshInstance" type="MeshInstance" parent="Spatial"]
+mesh = SubResource( 1 )
+material/0 = SubResource( 4 )
+
+[node name="Camera" type="Camera" parent="."]
+transform = Transform( -0.597107, 0, 0.802161, 0, 1, 0, -0.802161, 0, -0.597107, 9.90693, 3.18392, -18.5622 )
+environment = ExtResource( 4 )
+script = ExtResource( 3 )

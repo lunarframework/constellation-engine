@@ -1,13 +1,20 @@
-[gd_scene load_steps=3 format=2]
+[gd_scene load_steps=4 format=2]
+
+[ext_resource path="res://celestial/star/star_shader.tres" type="Shader" id=1]
 
 [sub_resource type="SphereMesh" id=1]
 
-[sub_resource type="SpatialMaterial" id=2]
-emission_enabled = true
-emission = Color( 1, 0.8, 0.2, 1 )
-emission_energy = 2.07
-emission_operator = 0
-emission_on_uv2 = false
+[sub_resource type="ShaderMaterial" id=2]
+shader = ExtResource( 1 )
+shader_param/granule_octaves = 4
+shader_param/granule_frequency = 0.5
+shader_param/granule_lacunarity = 40.0
+shader_param/sunspot_frequency = 2.7
+shader_param/sunspot_radius = 2.0
+shader_param/sunspot_cutoff = 1.0
+shader_param/fresnel_power = 2.0
+shader_param/fresnel_energy = 1.0
+shader_param/energy = 1.0
 
 [node name="Star" type="Spatial"]
 

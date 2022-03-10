@@ -45,6 +45,8 @@ func _ready():
 	popup.add_item("Save As")
 	popup.set_item_disabled(5, true)
 	
+	popup.add_separator()
+	
 	save_as.access = FileDialog.ACCESS_FILESYSTEM
 	save_as.mode = FileDialog.MODE_SAVE_FILE
 	save_as.resizable = true
@@ -55,10 +57,10 @@ func _ready():
 	# Event Handling
 	popup.connect("id_pressed", self, "_on_item_pressed")
 	
-func on_system_changed(system_tree):
-	if system_tree != null:
+func on_system_changed(tree, path):
+	if tree != null:
 		popup.set_item_disabled(2, false)
-		popup.set_item_disabled(4, system_tree.path == null)
+		popup.set_item_disabled(4, path == null)
 		popup.set_item_disabled(5, false)
 	else:
 		popup.set_item_disabled(2, true)

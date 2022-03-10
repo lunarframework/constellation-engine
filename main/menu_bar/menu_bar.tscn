@@ -1,9 +1,10 @@
-[gd_scene load_steps=5 format=2]
+[gd_scene load_steps=6 format=2]
 
 [ext_resource path="res://main/menu_bar/new/grav.gd" type="Script" id=1]
 [ext_resource path="res://main/menu_bar/system.gd" type="Script" id=2]
 [ext_resource path="res://main/menu_bar/help.gd" type="Script" id=3]
 [ext_resource path="res://main/menu_bar/menu_bar.gd" type="Script" id=4]
+[ext_resource path="res://main/menu_bar/solve.gd" type="Script" id=5]
 
 [node name="MenuBar" type="PanelContainer"]
 anchor_right = 1.0
@@ -106,6 +107,90 @@ margin_right = 215.0
 margin_bottom = 20.0
 size_flags_horizontal = 3
 text = "Cancel"
+
+[node name="Solve" type="WindowDialog" parent="Padding/HBox/System"]
+margin_left = 230.0
+margin_top = 166.0
+margin_right = 387.0
+margin_bottom = 278.0
+window_title = "Solve"
+script = ExtResource( 5 )
+__meta__ = {
+"_edit_use_anchors_": false
+}
+
+[node name="Contents" type="MarginContainer" parent="Padding/HBox/System/Solve"]
+anchor_right = 1.0
+anchor_bottom = 1.0
+custom_constants/margin_right = 4
+custom_constants/margin_top = 4
+custom_constants/margin_left = 4
+custom_constants/margin_bottom = 4
+__meta__ = {
+"_edit_use_anchors_": false
+}
+
+[node name="VBox" type="VBoxContainer" parent="Padding/HBox/System/Solve/Contents"]
+margin_left = 4.0
+margin_top = 4.0
+margin_right = 153.0
+margin_bottom = 108.0
+
+[node name="Grid" type="GridContainer" parent="Padding/HBox/System/Solve/Contents/VBox"]
+margin_right = 149.0
+margin_bottom = 80.0
+size_flags_horizontal = 3
+size_flags_vertical = 3
+columns = 2
+__meta__ = {
+"_edit_use_anchors_": false
+}
+
+[node name="StartLabel" type="Label" parent="Padding/HBox/System/Solve/Contents/VBox/Grid"]
+margin_top = 5.0
+margin_right = 70.0
+margin_bottom = 19.0
+text = "Start Time"
+
+[node name="Start" type="SpinBox" parent="Padding/HBox/System/Solve/Contents/VBox/Grid"]
+margin_left = 74.0
+margin_right = 148.0
+margin_bottom = 24.0
+max_value = 1e+06
+step = 0.001
+
+[node name="EndLabel" type="Label" parent="Padding/HBox/System/Solve/Contents/VBox/Grid"]
+margin_top = 33.0
+margin_right = 70.0
+margin_bottom = 47.0
+text = "End Time"
+
+[node name="End" type="SpinBox" parent="Padding/HBox/System/Solve/Contents/VBox/Grid"]
+margin_left = 74.0
+margin_top = 28.0
+margin_right = 148.0
+margin_bottom = 52.0
+max_value = 1e+06
+step = 0.001
+
+[node name="IterationLabel" type="Label" parent="Padding/HBox/System/Solve/Contents/VBox/Grid"]
+margin_top = 61.0
+margin_right = 70.0
+margin_bottom = 75.0
+text = "Interations"
+
+[node name="Iterations" type="SpinBox" parent="Padding/HBox/System/Solve/Contents/VBox/Grid"]
+margin_left = 74.0
+margin_top = 56.0
+margin_right = 148.0
+margin_bottom = 80.0
+max_value = 100000.0
+
+[node name="Solve" type="Button" parent="Padding/HBox/System/Solve/Contents/VBox"]
+margin_top = 84.0
+margin_right = 149.0
+margin_bottom = 104.0
+text = "Solve"
 
 [node name="Help" type="MenuButton" parent="Padding/HBox"]
 margin_left = 69.0

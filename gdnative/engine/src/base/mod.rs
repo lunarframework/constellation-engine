@@ -6,27 +6,26 @@ mod tree;
 use serde::{Deserializer, Serializer};
 use std::any::Any;
 
-pub use hecs::World;
+pub use hecs::{Entity, World};
 pub use math::AbstractVector;
 pub use node::SystemNode;
 pub use record::ContinuousRecord;
-pub use tree::{SystemConfig, SystemTree};
+pub use tree::{Config, SystemConfig, SystemTree};
 
-pub trait Object: Any {}
+pub trait Object: Send + Sync + Any {}
 
 pub trait System: Send + Sync + Sized + Any {
-    /// Sets up the system and adds any potential subsystems to the world.
-    /// Recursively calls setup on any subsystems
-    fn setup(
-        &mut self,
-        children: &mut World,
-        config: &SystemConfig,
-        start_time: f64,
-        end_time: f64,
-    );
+    fn solve_begin(&mut self, children: &mut World, config: &SystemConfig, time: f64);
 
-    /// Update the system and all subsystems
-    fn update(&mut self, children: &mut World, config: &SystemConfig, delta: f64);
+    fn solve_update(&mut self, children: &mut World, config: &SystemConfig, time: f64, delta: f64);
+
+    fn solve_end(&mut self, children: &mut World, config: &SystemConfig, time: f64);
+
+    fn view_begin(&mut self, children: &mut World, config: &SystemConfig, time: f64);
+
+    fn view_set_time(&mut self, children: &mut World, config: &SystemConfig, time: f64);
+
+    fn view_end(&mut self, children: &mut World, config: &SystemConfig, time: f64);
 
     fn serialize_system<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where

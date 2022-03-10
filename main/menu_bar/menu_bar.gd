@@ -13,8 +13,8 @@ func _ready():
 	system_menu.connect("system_closed", self, "_on_system_closed")
 	system_menu.connect("system_saved", self, "_on_system_saved")
 
-func on_system_changed(system_tree):
-	system_menu.on_system_changed(system_tree)
+func on_system_changed(tree, path):
+	system_menu.on_system_changed(tree, path)
 
 func _on_system_created_grav(desc):
 	emit_signal("system_created_grav", desc)

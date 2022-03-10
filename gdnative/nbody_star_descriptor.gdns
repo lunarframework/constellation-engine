@@ -1,0 +1,9 @@
+[gd_resource type="NativeScript" load_steps=2 format=2]
+
+[ext_resource path="res://gdnative/engine.tres" type="GDNativeLibrary" id=1]
+
+[resource]
+resource_name = "NBodyStarDescriptor"
+class_name = "NBodyStarDescriptor"
+library = ExtResource( 1 )
+script_class_name = "NBodyStarDescriptor"

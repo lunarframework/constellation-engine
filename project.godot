@@ -15,25 +15,37 @@ _global_script_classes=[ {
 "path": "res://gdnative/grav_descriptor.gdns"
 }, {
 "base": "Reference",
-"class": "SystemContext",
-"language": "GDScript",
-"path": "res://classes/system_context.gd"
+"class": "NBodyStarDescriptor",
+"language": "NativeScript",
+"path": "res://gdnative/nbody_star_descriptor.gdns"
+}, {
+"base": "Reference",
+"class": "SolveDescriptor",
+"language": "NativeScript",
+"path": "res://gdnative/solve_descriptor.gdns"
 }, {
 "base": "Reference",
 "class": "SystemHierarchy",
 "language": "NativeScript",
-"path": "res://gdnative/system_hierarchy.gdns"
+"path": "res://gdnative/system_tree.gdns"
 }, {
 "base": "Reference",
 "class": "SystemManager",
 "language": "NativeScript",
 "path": "res://gdnative/system_manager.gdns"
+}, {
+"base": "Reference",
+"class": "UnitsDescriptor",
+"language": "NativeScript",
+"path": "res://gdnative/units_descriptor.gdns"
 } ]
 _global_script_class_icons={
 "GravDescriptor": "",
-"SystemContext": "",
+"NBodyStarDescriptor": "",
+"SolveDescriptor": "",
 "SystemHierarchy": "",
-"SystemManager": ""
+"SystemManager": "",
+"UnitsDescriptor": ""
 }
 
 [application]
@@ -79,7 +91,7 @@ camera_strafe_left={
 }
 camera_look={
 "deadzone": 0.5,
-"events": [ Object(InputEventMouseButton,"resource_local_to_scene":false,"resource_name":"","device":0,"alt":false,"shift":false,"control":false,"meta":false,"command":false,"button_mask":0,"position":Vector2( 0, 0 ),"global_position":Vector2( 0, 0 ),"factor":1.0,"button_index":1,"pressed":false,"doubleclick":false,"script":null)
+"events": [ Object(InputEventMouseButton,"resource_local_to_scene":false,"resource_name":"","device":0,"alt":false,"shift":false,"control":false,"meta":false,"command":false,"button_mask":0,"position":Vector2( 0, 0 ),"global_position":Vector2( 0, 0 ),"factor":1.0,"button_index":2,"pressed":false,"doubleclick":false,"script":null)
  ]
 }
 camera_roll_cw={

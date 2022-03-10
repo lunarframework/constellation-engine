@@ -1,0 +1,4 @@
+[submodule "gdnative/engine/engine-sys/cpp/third-party/dealii"]
+	path = gdnative/engine/engine-sys/cpp/third-party/dealii
+	url = https://github.com/dealii/dealii.git
+	branch = dealii-9.3

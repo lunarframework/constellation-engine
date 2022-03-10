@@ -123,7 +123,7 @@ uniform float sunspot_frequency = 2.7;
 uniform float sunspot_radius = 2.0;
 uniform float sunspot_cutoff = 1.0;
 
-uniform float fresnel_power = 2.0;
+uniform float fresnel_power = 1.0;
 uniform float fresnel_energy = 1.0;
 
 uniform float energy = 1.0;
@@ -141,23 +141,21 @@ void fragment() {
 	// Star Surface Effects //
 	//////////////////////////
 	
-	vec3 normal = normalize(local);
-	
 	// Compute temp
 	
-	float granules = 1.0 - abs(noise(local, granule_octaves, granule_frequency, granule_lacunarity));
+	float granules = 1.0 - abs(noise(local + vec3(TIME / 10.0), granule_octaves, granule_frequency, granule_lacunarity));
 	// float granules = (noise(local, granule_octaves, granule_frequency, granule_lacunarity) + 1.0) * 0.5;
 	
-	float sunspots = max(snoise(local * sunspot_frequency) * sunspot_radius - sunspot_cutoff, 0.0);
+	float sunspots = max(snoise(local * sunspot_frequency - vec3(0.0, TIME / 20.0, 0.0)) * sunspot_radius - sunspot_cutoff, 0.0);
 	
-	float temp = granules - sunspots*sunspots;
+	float temp = granules - sunspots;
 	
-	float fresnel = 1.0 - pow(dot(NORMAL, VIEW), fresnel_power);
+	float fresnel = pow(1.0 - dot(NORMAL, VIEW), fresnel_power);
+
 	
-	// vec3 color = energy * texture(gradient, vec2(clamp(temp, 0.0, 1.0) * max(1.0, temp - 1.0), 0.0)).xyz;
-	vec3 color = energy * vec3(1.0, 0.5, 0.3) * clamp(temp, 0.0, 1.0) * max(1.0, temp - 1.0);
+	vec3 color = energy * texture(gradient, vec2(clamp(temp, 0.0, 1.0) * max(1.0, temp - 1.0), 0.0)).xyz;
 	
-	// color *=  fresnel_energy * fresnel + 1.0;
+	color *=  fresnel_energy * fresnel + 1.0;
 	
 	// ALBEDO = vec3((noise(local_pos, 4, 0.5, 40.0) + 1.0) * 0.5);
 	ALBEDO = color;

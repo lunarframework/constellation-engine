@@ -1,8 +1,7 @@
 extends TabContainer
 
-signal system_selected(system_tree)
+signal system_selected(tree, path)
 
-onready var system_trees = []
 var is_empty = false
 
 onready var empty = preload("res://main/views/empty.tscn")
@@ -15,19 +14,20 @@ func _ready():
 	add_child(empty.instance())
 	self.current_tab = 0
 	
-func add_system(system_tree):
-	if system_trees.size() == 0:
+func add_system(tree, path):
+	if is_empty:
 		get_child(0).queue_free()
 		is_empty = false
-	
-	var current = system_trees.size()
-	system_trees.append(system_tree)
+		
+	var current = get_child_count()
 	
 	var v = view.instance()
+	v.tree = tree
+	v.path = path
 	
 	var repeats = 0
 	
-	var system_name = system_tree.hierarchy.name()
+	var system_name = tree.name()
 	
 	for i in range(0, get_child_count()):
 		if get_child(i).name.begins_with(system_name):
@@ -41,30 +41,30 @@ func add_system(system_tree):
 	add_child(v)
 	
 func get_current():
-	if self.current_tab < system_trees.size() and !is_empty:
-		return system_trees[self.current_tab]
+	if self.current_tab < get_child_count() and !is_empty:
+		var current = get_child(self.current_tab)
+		return [current.tree, current.path]
 	else:
 		return null
 
 func close_current():
-	if self.current_tab < system_trees.size():
-		system_trees.remove(self.current_tab)
+	if self.current_tab < get_child_count() and !is_empty:
 		get_child(self.current_tab).queue_free()
-	if system_trees.size() == 0 and !is_empty:
+	if get_child_count() == 0 and !is_empty:
 		is_empty = true
 		add_child(empty.instance())
 		self.current_tab = 0
 		
 	if is_empty:
-		emit_signal("system_selected", null)
+		emit_signal("system_selected", null, null)
 	else:
 		self.current_tab -= 1
 		if self.current_tab < 0:
 			self.current_tab = 0
-		elif self.current_tab >= system_trees.size():
-			self.current_tab = system_trees.size() - 1
+		elif self.current_tab >= get_child_count():
+			self.current_tab = get_child_count() - 1
 			
 
 func _on_tab_selected(tab: int):
-	if !is_empty and tab < system_trees.size():
-		emit_signal("system_selected", system_trees[tab])
+	if !is_empty and tab < get_child_count():
+		emit_signal("system_selected", get_child(tab).tree, get_child(tab).path)

@@ -1,6 +1,8 @@
-use super::{GravDescriptor, SystemHierarchy, SystemHierarchyFormat, SystemHierarchyRoot};
+use super::{GravDescriptor, SystemTreeGD, SystemTreeRoot};
+use super::{SolveDescriptor, UnitsDescriptor};
 use crate::base::SystemTree;
 use crate::gravity::GravitationalSystem;
+use gdnative::api::Tree;
 use gdnative::prelude::*;
 use std::fs::File;
 use std::io::{Read, Seek, SeekFrom, Write};
@@ -34,39 +36,39 @@ impl SystemManager {
         Self {}
     }
 
+    // #[export]
+    // fn create_grav(
+    //     &self,
+    //     _owner: &Reference,
+    //     desc: Instance<GravDescriptor, Shared>,
+    // ) -> Instance<SystemTreeGD, Unique> {
+    //     let desc = unsafe { desc.assume_safe() };
+
+    //     let desc =
+    //         match desc.map(|desc: &GravDescriptor, _base: TRef<Reference, Shared>| desc.clone()) {
+    //             Err(error) => {
+    //                 godot_error!("Failed to access descriptor with error {:?}", error);
+    //                 GravDescriptor::default()
+    //             }
+    //             Ok(desc) => desc,
+    //         };
+
+    //     SystemTreeGD::new(
+    //         desc.name,
+    //         SystemTreeRoot::Grav(SystemTree::new(GravitationalSystem)),
+    //     )
+    //     .emplace()
+    // }
+
     #[export]
-    fn create_grav(
-        &self,
-        _owner: &Reference,
-        desc: Instance<GravDescriptor, Shared>,
-    ) -> Instance<SystemHierarchy, Unique> {
-        let desc = unsafe { desc.assume_safe() };
-
-        let desc =
-            match desc.map(|desc: &GravDescriptor, _base: TRef<Reference, Shared>| desc.clone()) {
-                Err(error) => {
-                    godot_error!("Failed to access descriptor with error {:?}", error);
-                    GravDescriptor::default()
-                }
-                Ok(desc) => desc,
-            };
-
-        SystemHierarchy::new(SystemHierarchyFormat {
-            name: desc.name,
-            root: SystemHierarchyRoot::Grav(SystemTree::new(GravitationalSystem)),
-        })
-        .emplace()
-    }
-
-    #[export]
-    fn load(&self, _owner: &Reference, path: GodotString) -> Instance<SystemHierarchy, Unique> {
+    fn load(&self, _owner: &Reference, path: GodotString) -> Instance<SystemTreeGD, Unique> {
         let path = PathBuf::from(path.to_string());
 
         match load_hierarchy(path.clone()) {
-            Ok(root) => SystemHierarchy::new(root).emplace(),
+            Ok(tree) => tree.emplace(),
             Err(error) => {
                 godot_error!("Failed to load hierarchy with error {:?}", error);
-                SystemHierarchy::empty().emplace()
+                SystemTreeGD::empty().emplace()
             }
         }
     }
@@ -75,31 +77,29 @@ impl SystemManager {
     fn save(
         &self,
         _owner: &Reference,
-        path: GodotString,
-        system_tree: Instance<SystemHierarchy, Shared>,
+        _path: GodotString,
+        _system_tree: Instance<SystemTreeGD, Shared>,
     ) {
-        let path = PathBuf::from(path.to_string());
-        let system_tree = unsafe { system_tree.assume_safe() };
+        // let path = PathBuf::from(path.to_string());
+        // let system_tree = unsafe { system_tree.assume_safe() };
 
-        match system_tree.map(
-            |hierarchy: &SystemHierarchy, _base: TRef<Reference, Shared>| {
-                match save_hierarchy(path, hierarchy) {
-                    Err(error) => {
-                        godot_error!("Failed to save hierarchy with error {:?}", error);
-                    }
-                    _ => {}
-                };
-            },
-        ) {
-            Err(error) => {
-                godot_error!("Failed to access hierarchy with error {:?}", error);
-            }
-            _ => {}
-        }
+        // match system_tree.map(|hierarchy: &SystemTreeGD, _base: TRef<Reference, Shared>| {
+        //     match save_hierarchy(path, hierarchy) {
+        //         Err(error) => {
+        //             godot_error!("Failed to save hierarchy with error {:?}", error);
+        //         }
+        //         _ => {}
+        //     };
+        // }) {
+        //     Err(error) => {
+        //         godot_error!("Failed to access hierarchy with error {:?}", error);
+        //     }
+        //     _ => {}
+        // }
     }
 }
 
-fn load_hierarchy(path: PathBuf) -> Result<SystemHierarchyFormat, LoadError> {
+fn load_hierarchy(path: PathBuf) -> Result<SystemTreeGD, LoadError> {
     let mut file = File::open(&path).map_err(|_error| LoadError::FileSystemError)?;
 
     let len = file
@@ -116,14 +116,12 @@ fn load_hierarchy(path: PathBuf) -> Result<SystemHierarchyFormat, LoadError> {
     Ok(bincode::deserialize(&contents).map_err(|_e| LoadError::DeserializationError)?)
 }
 
-fn save_hierarchy(path: PathBuf, hierarchy: &SystemHierarchy) -> Result<(), SaveError> {
-    if let Some(format) = hierarchy.inner() {
-        let contents = bincode::serialize(format).map_err(|_e| SaveError::SerializationError)?;
+fn save_hierarchy(path: PathBuf, tree: &SystemTreeGD) -> Result<(), SaveError> {
+    let contents = bincode::serialize(tree).map_err(|_e| SaveError::SerializationError)?;
 
-        let mut file = File::create(path).map_err(|_e| SaveError::FileSystemError)?;
-        file.write_all(&contents)
-            .map_err(|_e| SaveError::FileSystemError)?;
-    }
+    let mut file = File::create(path).map_err(|_e| SaveError::FileSystemError)?;
+    file.write_all(&contents)
+        .map_err(|_e| SaveError::FileSystemError)?;
 
     Ok(())
 }

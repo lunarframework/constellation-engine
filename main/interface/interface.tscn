@@ -1,8 +1,7 @@
-[gd_scene load_steps=4 format=2]
+[gd_scene load_steps=3 format=2]
 
 [ext_resource path="res://main/interface/interface.gd" type="Script" id=2]
-[ext_resource path="res://main/interface/system.gd" type="Script" id=3]
-[ext_resource path="res://main/interface/config.gd" type="Script" id=4]
+[ext_resource path="res://main/interface/units.gd" type="Script" id=5]
 
 [node name="Interface" type="TabContainer"]
 margin_right = 167.0
@@ -20,9 +19,9 @@ margin_left = 4.0
 margin_top = 32.0
 margin_right = -4.0
 margin_bottom = -4.0
-script = ExtResource( 3 )
 
 [node name="Some" type="MarginContainer" parent="System"]
+visible = false
 margin_right = 159.0
 margin_bottom = 118.0
 size_flags_horizontal = 3
@@ -42,8 +41,6 @@ size_flags_horizontal = 3
 size_flags_vertical = 3
 
 [node name="None" type="CenterContainer" parent="System"]
-visible = false
-margin_top = 61.0
 margin_right = 159.0
 margin_bottom = 118.0
 size_flags_horizontal = 3
@@ -51,9 +48,9 @@ size_flags_vertical = 3
 
 [node name="Label" type="Label" parent="System/None"]
 margin_left = 9.0
-margin_top = 21.0
+margin_top = 52.0
 margin_right = 149.0
-margin_bottom = 35.0
+margin_bottom = 66.0
 text = "[No System Selected] "
 align = 1
 valign = 1
@@ -66,19 +63,103 @@ margin_left = 4.0
 margin_top = 32.0
 margin_right = -4.0
 margin_bottom = -4.0
-script = ExtResource( 4 )
 
 [node name="None" type="CenterContainer" parent="Config"]
+visible = false
 margin_right = 159.0
-margin_bottom = 118.0
+margin_bottom = 114.0
 size_flags_horizontal = 3
 size_flags_vertical = 3
 
 [node name="Label" type="Label" parent="Config/None"]
 margin_left = 9.0
-margin_top = 52.0
+margin_top = 50.0
 margin_right = 149.0
-margin_bottom = 66.0
+margin_bottom = 64.0
 text = "[No System Selected] "
 align = 1
 valign = 1
+
+[node name="Some" type="VBoxContainer" parent="Config"]
+margin_right = 159.0
+margin_bottom = 118.0
+size_flags_horizontal = 3
+size_flags_vertical = 3
+
+[node name="Units" type="Panel" parent="Config/Some"]
+margin_right = 159.0
+margin_bottom = 118.0
+size_flags_horizontal = 3
+size_flags_vertical = 3
+script = ExtResource( 5 )
+
+[node name="VBox" type="VBoxContainer" parent="Config/Some/Units"]
+anchor_right = 1.0
+anchor_bottom = 1.0
+margin_left = 7.0
+margin_top = 7.0
+margin_right = -7.0
+margin_bottom = -7.0
+__meta__ = {
+"_edit_use_anchors_": false
+}
+
+[node name="Header" type="Label" parent="Config/Some/Units/VBox"]
+margin_right = 145.0
+margin_bottom = 14.0
+text = "Units"
+__meta__ = {
+"_edit_use_anchors_": false
+}
+
+[node name="VSeparator" type="HSeparator" parent="Config/Some/Units/VBox"]
+margin_top = 18.0
+margin_right = 145.0
+margin_bottom = 22.0
+
+[node name="Grid" type="GridContainer" parent="Config/Some/Units/VBox"]
+margin_top = 26.0
+margin_right = 145.0
+margin_bottom = 104.0
+size_flags_horizontal = 3
+size_flags_vertical = 3
+columns = 2
+
+[node name="LengthLabel" type="Label" parent="Config/Some/Units/VBox/Grid"]
+margin_top = 3.0
+margin_right = 51.0
+margin_bottom = 17.0
+text = "Length: "
+
+[node name="LengthOptions" type="OptionButton" parent="Config/Some/Units/VBox/Grid"]
+margin_left = 55.0
+margin_right = 145.0
+margin_bottom = 20.0
+size_flags_horizontal = 3
+
+[node name="MassLabel" type="Label" parent="Config/Some/Units/VBox/Grid"]
+margin_top = 27.0
+margin_right = 51.0
+margin_bottom = 41.0
+text = "Mass:"
+
+[node name="MassOptions" type="OptionButton" parent="Config/Some/Units/VBox/Grid"]
+margin_left = 55.0
+margin_top = 24.0
+margin_right = 145.0
+margin_bottom = 44.0
+
+[node name="TimeLabel" type="Label" parent="Config/Some/Units/VBox/Grid"]
+margin_top = 51.0
+margin_right = 51.0
+margin_bottom = 65.0
+text = "Time:"
+
+[node name="TimeOptions" type="OptionButton" parent="Config/Some/Units/VBox/Grid"]
+margin_left = 55.0
+margin_top = 48.0
+margin_right = 145.0
+margin_bottom = 68.0
+__meta__ = {
+"_edit_use_anchors_": false
+}

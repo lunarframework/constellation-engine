@@ -2,7 +2,6 @@
 
 [resource]
 code = "shader_type spatial;
-render_mode unshaded;
 
 vec3 mod289_3(vec3 x) {
     return x - floor(x * (1.0 / 289.0)) * 289.0;
@@ -104,60 +103,25 @@ float noise(vec3 position, int octaves, float frequency, float lacunarity) {
 	return total;
 }
 
-vec3 temp_to_color(float temp) {
-	vec3 color = vec3(255.0, 255.0, 255.0);
-    color.x = 56100000. * pow(temp, -1.5) + 148.0;
-    color.y = 100.04 * log(temp) - 623.6;
-    if (temp > 6500.0) color.y = 35200000.0 * pow(temp, -1.5) + 184.0;
-    color.z = 194.18 * log(temp) - 1448.6;
-    color = clamp(color, 0.0, 255.0)/255.0;
-    if (temp < 1000.0) color *= temp/1000.0;
-    return color;
-}
-
-uniform int granule_octaves = 4;
-uniform float granule_frequency = 0.5;
-uniform float granule_lacunarity = 40.0;
-
-uniform float sunspot_frequency = 2.7;
-uniform float sunspot_radius = 2.0;
-uniform float sunspot_cutoff = 1.0;
-
-uniform float fresnel_power = 2.0;
-uniform float fresnel_energy = 1.0;
-
-uniform float energy = 1.0;
-
+uniform float cutoff;
 uniform sampler2D gradient;
 
-varying vec3 local;
+varying vec3 vert;
 
 void vertex() {
-	local = VERTEX;
+	vert = VERTEX;
 }
 
+uniform float mountain_cutoff;
+uniform float offset_scale = 1.0;
+
 void fragment() {
-	//////////////////////////
-	// Star Surface Effects //
-	//////////////////////////
 	
-	vec3 normal = normalize(local);
+	float value = 0.5 * (vert.y + 1.0);
 	
-	// Compute temp
+	float off = noise(vert, 3, 0.9, 10);
 	
-	float granules = 1.0 - abs(noise(local, granule_octaves, granule_frequency, granule_lacunarity));
-	// float granules = (noise(local, granule_octaves, granule_frequency, granule_lacunarity) + 1.0) * 0.5;
-	
-	float sunspots = max(snoise(local * sunspot_frequency) * sunspot_radius - sunspot_cutoff, 0.0);
-	
-	float temp = granules - sunspots*sunspots;
-	
-	float fresnel = 1.0 - pow(dot(NORMAL, VIEW), fresnel_power);
-	
-	// vec3 color = energy * texture(gradient, vec2(clamp(temp, 0.0, 1.0) * max(1.0, temp - 1.0), 0.0)).xyz;
-	vec3 color = energy * vec3(1.0, 0.5, 0.3) * clamp(temp, 0.0, 1.0) * max(1.0, temp - 1.0);
-	
-	// color *=  fresnel_energy * fresnel + 1.0;
+	vec3 color = texture(gradient, vec2(clamp(value + off * offset_scale, 0.0, 1.0), 0.0)).xyz;
 	
 	// ALBEDO = vec3((noise(local_pos, 4, 0.5, 40.0) + 1.0) * 0.5);
 	ALBEDO = color;

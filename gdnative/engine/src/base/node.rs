@@ -1,4 +1,4 @@
-use super::System;
+use super::{System, SystemConfig};
 use hecs::World;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use std::marker::PhantomData;
@@ -15,6 +15,44 @@ impl<S: System> SystemNode<S> {
             system: SystemWrapper(system),
             children: ChildrenWrapper(World::new(), PhantomData),
         }
+    }
+
+    // pub fn edit_begin(&mut self, config: &SystemConfig) {
+    //     self.system.0.edit_begin(&mut self.children.0, config);
+    // }
+
+    // pub fn edit_end(&mut self, config: &SystemConfig) {
+    //     self.system.0.edit_end(&mut self.children.0, config);
+    // }
+
+    pub fn solve_begin(&mut self, config: &SystemConfig, time: f64) {
+        self.system
+            .0
+            .solve_begin(&mut self.children.0, config, time);
+    }
+
+    pub fn solve_update(&mut self, config: &SystemConfig, time: f64, delta: f64) {
+        self.system
+            .0
+            .solve_update(&mut self.children.0, config, time, delta);
+    }
+
+    pub fn solve_end(&mut self, config: &SystemConfig, time: f64) {
+        self.system.0.solve_end(&mut self.children.0, config, time);
+    }
+
+    pub fn view_begin(&mut self, config: &SystemConfig, time: f64) {
+        self.system.0.view_begin(&mut self.children.0, config, time);
+    }
+
+    pub fn view_set_time(&mut self, config: &SystemConfig, time: f64) {
+        self.system
+            .0
+            .view_set_time(&mut self.children.0, config, time);
+    }
+
+    pub fn view_end(&mut self, config: &SystemConfig, time: f64) {
+        self.system.0.view_end(&mut self.children.0, config, time);
     }
 
     pub fn get(&self) -> &S {

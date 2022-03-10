@@ -3,7 +3,7 @@
 [ext_resource path="res://gdnative/engine.tres" type="GDNativeLibrary" id=1]
 
 [resource]
-resource_name = "SystemHierarchy"
-class_name = "SystemHierarchy"
+resource_name = "UnitsDescriptor"
+class_name = "UnitsDescriptor"
 library = ExtResource( 1 )
-script_class_name = "SystemHierarchy"
+script_class_name = "UnitsDescriptor"

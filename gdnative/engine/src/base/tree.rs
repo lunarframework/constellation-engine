@@ -5,6 +5,8 @@ use std::any::{Any, TypeId};
 use std::hash::{BuildHasher, BuildHasherDefault, Hasher};
 use std::marker::PhantomData;
 
+pub trait Config: Any + Send + Sync {}
+
 #[derive(Serialize, Deserialize)]
 pub struct SystemTree<R: System + Root> {
     root: SystemNode<R>,
@@ -17,6 +19,20 @@ impl<R: System + Root> SystemTree<R> {
             root: SystemNode::new(root),
             config: SystemConfigWrapper(R::default_config(), PhantomData),
         }
+    }
+
+    pub fn solve(&mut self, start: f64, end: f64, iterations: usize) {
+        self.root.solve_begin(&self.config.0, start);
+
+        let mut time = start;
+        let delta = (end - start) / (iterations + 1) as f64;
+
+        for _i in 0..(iterations + 1) {
+            self.root.solve_update(&self.config.0, time, delta);
+            time += delta;
+        }
+
+        self.root.solve_end(&self.config.0, time);
     }
 
     pub fn root(&self) -> &SystemNode<R> {
@@ -36,7 +52,7 @@ impl<R: System + Root> SystemTree<R> {
     }
 }
 
-pub struct SystemConfigWrapper<R: Root>(SystemConfig, PhantomData<R>);
+struct SystemConfigWrapper<R: Root>(SystemConfig, PhantomData<R>);
 
 impl<R: Root> Serialize for SystemConfigWrapper<R> {
     fn serialize<Ser>(&self, serializer: Ser) -> Result<Ser::Ok, Ser::Error>
@@ -60,8 +76,9 @@ impl<'de, R: Root> Deserialize<'de> for SystemConfigWrapper<R> {
 }
 
 /// Handles Global Configuration of Systems
+#[derive(Default)]
 pub struct SystemConfig {
-    configs: TypeIdMap<Box<dyn Any>>,
+    configs: TypeIdMap<Box<dyn Config>>,
 }
 
 impl SystemConfig {
@@ -71,25 +88,31 @@ impl SystemConfig {
         }
     }
 
-    pub fn insert<T: Send + Sync + Any>(&mut self, res: T) {
+    pub fn insert<T: Config>(&mut self, res: T) {
         self.configs.insert(TypeId::of::<T>(), Box::new(res));
     }
 
-    pub fn remove<T: Send + Sync + Any>(&mut self) {
+    pub fn remove<T: Config>(&mut self) {
         self.configs.remove(&TypeId::of::<T>());
     }
 
-    pub fn get<T: Send + Sync + Any>(&self) -> Option<&T> {
+    pub fn get<T: Config>(&self) -> Option<&T> {
         self.configs
             .get(&TypeId::of::<T>())
-            .map(|v| v.downcast_ref::<T>())
+            .map(|v| {
+                let s: &dyn Any = v;
+                s.downcast_ref::<T>()
+            })
             .flatten()
     }
 
-    pub fn get_mut<T: Send + Sync + Any>(&mut self) -> Option<&mut T> {
+    pub fn get_mut<T: Config>(&mut self) -> Option<&mut T> {
         self.configs
             .get_mut(&TypeId::of::<T>())
-            .map(|v| v.downcast_mut::<T>())
+            .map(|v| {
+                let s: &mut dyn Any = v;
+                s.downcast_mut::<T>()
+            })
             .flatten()
     }
 }
